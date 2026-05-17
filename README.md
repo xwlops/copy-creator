@@ -20,6 +20,15 @@ PC 端效率辅助工具 —— 剪切板管理、快捷短语、翻译，桌面
 | 本地存储 | SQLite (rusqlite, bundled) |
 | 国际化 | react-i18next（简体中文 / English） |
 
+## 下载
+
+前往 [Releases](https://github.com/hu-qi-jia/copy-creator/releases) 页面下载最新安装包：
+
+- `Copy Creator_x64-setup.exe` — NSIS 安装包
+- `Copy Creator_x64_zh-CN.msi` — MSI 安装包（中文）
+
+系统要求：Windows 10+
+
 ## 开发
 
 ```bash

@@ -28,6 +28,15 @@
   font-display: swap;
 }
 
+/* === SF Pro Display Black (Brand) === */
+@font-face {
+  font-family: 'SF Pro Display';
+  src: url('/字体/SF-Pro-Display-Black.otf') format('opentype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* === Design Tokens === */
 :root {
   --bg-primary: #F2F2F7;
@@ -51,6 +60,7 @@
   /* Typography */
   --font: "PingFang", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
   --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
+  --font-brand: "SF Pro Display", "PingFang", -apple-system, BlinkMacSystemFont, sans-serif;
   --text-xs: 10.5px;
   --text-sm: 12px;
   --text-base: 14px;
@@ -60,9 +70,9 @@
   --weight-normal: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
-  --sidebar-bg: rgba(242, 242, 247, 0.72);
+  --sidebar-bg: rgba(242, 242, 247, 0.88);
   --sidebar-border: rgba(0, 0, 0, 0.06);
-  --panel-bg: rgba(255, 255, 255, 0.78);
+  --panel-bg: rgba(255, 255, 255, 0.90);
   --panel-header-bg: rgba(255, 255, 255, 0.5);
   --nav-item-color: rgba(60, 60, 67, 0.5);
   --nav-item-hover-bg: rgba(0, 0, 0, 0.04);
@@ -95,15 +105,15 @@
   --bg-primary: #000000;
   --bg-card: rgba(255, 255, 255, 0.06);
   --bg-card-hover: rgba(255, 255, 255, 0.1);
-  --text-primary: #F2F2F7;
-  --text-secondary: #8E8E93;
+  --text-primary: #FFFFFF;
+  --text-secondary: #A1A1A6;
   --text-tertiary: #48484A;
   --separator: rgba(255, 255, 255, 0.08);
   --shadow: 0 1px 3px rgba(0,0,0,0.3);
   --glass-bg: rgba(0, 0, 0, 0.5);
-  --sidebar-bg: rgba(30, 30, 30, 0.6);
+  --sidebar-bg: rgba(30, 30, 30, 0.78);
   --sidebar-border: rgba(255, 255, 255, 0.06);
-  --panel-bg: rgba(30, 30, 30, 0.5);
+  --panel-bg: rgba(30, 30, 30, 0.82);
   --panel-header-bg: transparent;
   --nav-item-color: rgba(255, 255, 255, 0.4);
   --nav-item-hover-bg: rgba(255, 255, 255, 0.06);

@@ -3,6 +3,8 @@ use std::sync::OnceLock;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
+static RADIAL_MENU_ENABLED: AtomicBool = AtomicBool::new(true);
+
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::*;
 #[cfg(target_os = "windows")]
@@ -16,6 +18,15 @@ static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 static HOOK_HANDLE: AtomicPtr<core::ffi::c_void> = AtomicPtr::new(core::ptr::null_mut());
 
 static TOGGLING: AtomicBool = AtomicBool::new(false);
+
+/// RAII guard that ensures TOGGLING is always reset, even on panic.
+struct ToggleGuard;
+
+impl Drop for ToggleGuard {
+    fn drop(&mut self) {
+        TOGGLING.store(false, Ordering::SeqCst);
+    }
+}
 
 #[cfg(target_os = "windows")]
 static RADIAL_RIGHT_DOWN: AtomicBool = AtomicBool::new(false);
@@ -38,6 +49,7 @@ pub fn toggle_window(app: &AppHandle) {
     if TOGGLING.swap(true, Ordering::SeqCst) {
         return;
     }
+    let _guard = ToggleGuard;
 
     if let Some(window) = app.get_webview_window("main") {
         if window.is_visible().unwrap_or(false) {
@@ -50,8 +62,6 @@ pub fn toggle_window(app: &AppHandle) {
             let _ = window.set_focus();
         }
     }
-
-    TOGGLING.store(false, Ordering::SeqCst);
 }
 
 #[cfg(target_os = "windows")]
@@ -85,6 +95,10 @@ unsafe extern "system" fn mouse_hook_callback(
             }
 
             if ctrl && alt && !shift {
+                if !RADIAL_MENU_ENABLED.load(Ordering::SeqCst) {
+                    let hook = HHOOK(HOOK_HANDLE.load(Ordering::SeqCst));
+                    return unsafe { CallNextHookEx(hook, n_code, w_param, l_param) };
+                }
                 if let Some(app) = APP_HANDLE.get() {
                     if let Some(window) = app.get_webview_window("radial-menu") {
                         crate::paste::save_foreground_window();
@@ -105,28 +119,6 @@ unsafe extern "system" fn mouse_hook_callback(
                             tauri::PhysicalPosition::new(sx - half_w, sy - top_off),
                         ));
 
-                        let _ = window.show();
-                        let _ = window.set_focus();
-
-                        // Force window to top of Z-order for global use
-                        if let Ok(raw_hwnd) = window.hwnd() {
-                            let hwnd = HWND(raw_hwnd.0);
-                            unsafe {
-                                let _ = SetWindowPos(
-                                    hwnd,
-                                    HWND_TOPMOST,
-                                    0, 0, 0, 0,
-                                    SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
-                                );
-                                let _ = SetWindowPos(
-                                    hwnd,
-                                    HWND_NOTOPMOST,
-                                    0, 0, 0, 0,
-                                    SWP_NOMOVE | SWP_NOSIZE,
-                                );
-                            }
-                        }
-
                         RADIAL_RIGHT_DOWN.store(true, Ordering::SeqCst);
                         RADIAL_START_X.store(sx, Ordering::SeqCst);
                         RADIAL_START_Y.store(sy, Ordering::SeqCst);
@@ -136,6 +128,9 @@ unsafe extern "system" fn mouse_hook_callback(
                             "radial-menu-down",
                             RadialMenuPoint { x: css_x, y: css_y },
                         );
+
+                        let _ = window.show();
+                        let _ = window.set_focus();
                     }
                 }
                 return LRESULT(1);
@@ -198,6 +193,11 @@ unsafe extern "system" fn mouse_hook_callback(
 pub fn install_mouse_hook(app: &AppHandle) {
     #[cfg(target_os = "windows")]
     {
+        // Restore persisted radial menu enabled state
+        if let Ok(val) = crate::db::get_setting(app.clone(), "radial_menu_enabled".to_string()) {
+            RADIAL_MENU_ENABLED.store(val == "1", Ordering::SeqCst);
+        }
+
         APP_HANDLE.set(app.clone()).ok();
         let hook = unsafe {
             SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_callback), None, 0)
@@ -248,3 +248,16 @@ pub fn update_shortcut(
     }
     Ok(())
 }
+
+#[tauri::command]
+pub fn set_radial_menu_enabled(app: AppHandle, enabled: bool) -> Result<(), String> {
+    RADIAL_MENU_ENABLED.store(enabled, Ordering::SeqCst);
+    let state = app.state::<crate::db::DbState>();
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES ('radial_menu_enabled', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1",
+        rusqlite::params![if enabled { "1" } else { "0" }],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+

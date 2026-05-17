@@ -30,6 +30,6 @@ export interface TranslationRecord {
   target_text: string;
   source_lang: string;
   target_lang: string;
-  engine: "ai" | "builtin" | "google";
+  engine: "ai" | "google";
   created_at: string;
 }

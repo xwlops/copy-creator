@@ -25,10 +25,18 @@ struct CachedImage {
     png_bytes: Arc<Vec<u8>>,
 }
 
-static IMAGE_CACHE: OnceLock<Mutex<HashMap<String, CachedImage>>> = OnceLock::new();
+struct ImageCache {
+    map: HashMap<String, CachedImage>,
+    order: Vec<String>,
+}
 
-fn get_image_cache() -> &'static Mutex<HashMap<String, CachedImage>> {
-    IMAGE_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+static IMAGE_CACHE: OnceLock<Mutex<ImageCache>> = OnceLock::new();
+
+fn get_image_cache() -> &'static Mutex<ImageCache> {
+    IMAGE_CACHE.get_or_init(|| Mutex::new(ImageCache {
+        map: HashMap::new(),
+        order: Vec::new(),
+    }))
 }
 
 struct PasteGuard;
@@ -41,13 +49,16 @@ impl Drop for PasteGuard {
 
 pub fn cache_image(path: String, rgba: Vec<u8>, width: u32, height: u32, png_bytes: Vec<u8>) {
     let mut cache = get_image_cache().lock().unwrap();
-    if cache.len() >= 30 {
-        let keys: Vec<String> = cache.keys().take(15).cloned().collect();
-        for k in keys {
-            cache.remove(&k);
+    // Evict oldest entries (deterministic insertion order)
+    if cache.map.len() >= 30 {
+        let evict_count = 15.min(cache.order.len());
+        let evicted: Vec<String> = cache.order.drain(..evict_count).collect();
+        for k in &evicted {
+            cache.map.remove(k);
         }
     }
-    cache.insert(path, CachedImage {
+    cache.order.push(path.clone());
+    cache.map.insert(path, CachedImage {
         rgba: Arc::new(rgba),
         width,
         height,
@@ -91,7 +102,33 @@ fn paste_with_defocus(app: &AppHandle) -> Result<(), String> {
         }
     }
 
-    thread::sleep(Duration::from_millis(200));
+    // Wait for user to release Ctrl/Alt from the radial menu gesture (Ctrl+Alt+RightClick).
+    // If we send Ctrl+V while the physical Ctrl is still held, the simulated Ctrl release
+    // can race with the physical release, causing the target app to receive a bare 'V'.
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL, VK_MENU};
+        let start = std::time::Instant::now();
+        let timeout = Duration::from_millis(500);
+        loop {
+            let ctrl_up = unsafe { (GetAsyncKeyState(VK_CONTROL.0 as i32) as u16) & 0x8000 } == 0;
+            let alt_up = unsafe { (GetAsyncKeyState(VK_MENU.0 as i32) as u16) & 0x8000 } == 0;
+            if ctrl_up && alt_up {
+                break;
+            }
+            if start.elapsed() > timeout {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        // Small extra settle time for foreground window
+        thread::sleep(Duration::from_millis(30));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        thread::sleep(Duration::from_millis(200));
+    }
 
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| format!("enigo init: {}", e))?;
 
@@ -148,7 +185,7 @@ fn write_image_to_clipboard(rgba: &[u8], w: u32, h: u32, png_bytes: &[u8]) -> Re
         let bmi_header = std::slice::from_raw_parts_mut(bmi as *mut u32, 10);
         bmi_header[0] = 40;
         bmi_header[1] = w;
-        bmi_header[2] = h + (h << 1);
+        bmi_header[2] = (-(h as i32)) as u32;
         *(((bmi as *mut u8).add(12)) as *mut u16) = 1;
         *(((bmi as *mut u8).add(14)) as *mut u16) = 32;
         *(((bmi as *mut u8).add(20)) as *mut u32) = w * h * 4;
@@ -268,6 +305,9 @@ pub fn paste_text(app: AppHandle, text: String) -> Result<(), String> {
         return Err(e.to_string());
     }
 
+    // Sync monitor cache so the clipboard poller doesn't re-record our own paste
+    crate::clipboard::sync_monitor_cache(&app);
+
     let handle = app.clone();
     std::thread::spawn(move || {
         let _guard = PasteGuard;
@@ -289,7 +329,7 @@ pub fn paste_image(app: AppHandle, path: String) -> Result<(), String> {
 
         let (rgba, w, h, png) = {
             let cache = get_image_cache().lock().unwrap();
-            if let Some(cached) = cache.get(&path) {
+            if let Some(cached) = cache.map.get(&path) {
                 (cached.rgba.clone(), cached.width, cached.height, cached.png_bytes.clone())
             } else {
                 drop(cache);
@@ -351,25 +391,35 @@ pub fn paste_file(app: AppHandle, path: String) -> Result<(), String> {
         return Ok(());
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        if let Err(e) = write_files_to_clipboard(&[path]) {
-            PASTING.store(false, Ordering::SeqCst);
-            return Err(e);
-        }
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        if let Err(e) = app.clipboard().write_text(path) {
-            PASTING.store(false, Ordering::SeqCst);
-            return Err(e.to_string());
-        }
+    // Verify the file still exists on disk before pasting
+    let file_meta = std::fs::metadata(&path);
+    if file_meta.is_err() {
+        log::error!("paste_file: file not found: {}", path);
+        PASTING.store(false, Ordering::SeqCst);
+        return Err(format!("File not found: {}", path));
     }
 
     let handle = app.clone();
     std::thread::spawn(move || {
         let _guard = PasteGuard;
+
+        #[cfg(target_os = "windows")]
+        {
+            if let Err(e) = write_files_to_clipboard(&[path]) {
+                log::error!("paste_file: write clipboard error: {}", e);
+                return;
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            if let Err(e) = handle.clipboard().write_text(&path) {
+                log::error!("paste_file: write clipboard error: {}", e);
+                return;
+            }
+        }
+
+        crate::clipboard::sync_monitor_cache(&handle);
         paste_with_defocus(&handle).ok();
     });
 

@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 type UnlistenFn = () => void;
@@ -24,7 +23,6 @@ interface ClipboardState {
   imageCache: Record<string, string>;
   category: ClipType;
   initialized: boolean;
-  storageBase: string;
 
   init: () => void;
   setSearch: (s: string) => void;
@@ -74,15 +72,10 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
   imageCache: {},
   category: "all",
   initialized: false,
-  storageBase: "",
 
   init: () => {
     if (get().initialized) return;
     set({ initialized: true });
-
-    invoke<string>("get_storage_path").then((path) => {
-      set({ storageBase: path });
-    }).catch(() => {});
 
     listen<ClipboardRecord>("clipboard-update", (event) => {
       const newRecord = event.payload;
@@ -155,10 +148,12 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
       if (cached2) return cached2;
 
       try {
-        const absPath = await invoke<string>("ensure_thumbnail", {
+        // Use base64 data URI for reliable cross-platform display
+        const base64 = await invoke<string>("get_image_thumbnail", {
           path: record.content,
+          maxSize: 200,
         });
-        const url = convertFileSrc(absPath);
+        const url = `data:image/png;base64,${base64}`;
         set({ thumbnailCache: { ...get().thumbnailCache, [record.id]: url } });
         return url;
       } catch (e) {
@@ -173,11 +168,10 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
     if (cached) return cached;
 
     try {
-      const base = get().storageBase;
-      if (!base) return "";
-      const sep = base.includes("\\") ? "\\" : "/";
-      const fullPath = base + sep + record.content.replace(/\//g, sep);
-      const url = convertFileSrc(fullPath);
+      const base64 = await invoke<string>("get_image_base64", {
+        path: record.content,
+      });
+      const url = `data:image/png;base64,${base64}`;
       set({ imageCache: { ...get().imageCache, [record.id]: url } });
       return url;
     } catch (e) {

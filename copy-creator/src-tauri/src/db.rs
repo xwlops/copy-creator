@@ -2,24 +2,10 @@ use rusqlite::{Connection, params};
 use tauri::{AppHandle, Manager};
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::collections::HashSet;
 
 pub struct DbState {
     pub conn: Mutex<Connection>,
-}
-
-fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
-    std::fs::create_dir_all(dst)?;
-    for entry in std::fs::read_dir(src)? {
-        let entry = entry?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-        if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dst_path)?;
-        } else {
-            std::fs::copy(&src_path, &dst_path)?;
-        }
-    }
-    Ok(())
 }
 
 fn db_path(app: &AppHandle) -> PathBuf {
@@ -28,35 +14,45 @@ fn db_path(app: &AppHandle) -> PathBuf {
         .app_data_dir()
         .expect("failed to get app data dir");
     let default_db = default_dir.join("data.db");
+    std::fs::create_dir_all(&default_dir).ok();
 
-    if default_db.exists() {
-        if let Ok(conn) = Connection::open(&default_db) {
-            if let Ok(path) = conn.query_row(
-                "SELECT value FROM settings WHERE key = 'storage_path'",
-                [],
-                |row| row.get::<_, String>(0),
-            ) {
-                if !path.is_empty() {
-                    let custom_dir = PathBuf::from(&path);
-                    if custom_dir.exists() || std::fs::create_dir_all(&custom_dir).is_ok() {
-                        let custom_db = custom_dir.join("data.db");
-                        if !custom_db.exists() {
-                            let _ = std::fs::copy(&default_db, &custom_db);
-                            let src_images = default_dir.join("images");
-                            let dst_images = custom_dir.join("images");
-                            if src_images.exists() && !dst_images.exists() {
-                                let _ = copy_dir_recursive(&src_images, &dst_images);
-                            }
-                        }
-                        return custom_db;
-                    }
-                }
-            }
-        }
+    if !default_db.exists() {
+        return default_db;
     }
 
-    std::fs::create_dir_all(&default_dir).ok();
-    default_db
+    let mut current = default_db;
+    let mut visited: HashSet<PathBuf> = HashSet::new();
+
+    loop {
+        let conn = match Connection::open(&current) {
+            Ok(c) => c,
+            Err(_) => break,
+        };
+
+        let path: String = match conn.query_row(
+            "SELECT value FROM settings WHERE key = 'storage_path'",
+            [],
+            |row| row.get::<_, String>(0),
+        ) {
+            Ok(p) if !p.is_empty() => p,
+            _ => break,
+        };
+
+        let custom_dir = PathBuf::from(&path);
+        let custom_db = custom_dir.join("data.db");
+
+        if custom_db == current || !visited.insert(custom_db.clone()) {
+            break;
+        }
+
+        if !custom_db.exists() {
+            break;
+        }
+
+        current = custom_db;
+    }
+
+    current
 }
 
 pub fn get_storage_dir(app: &AppHandle) -> PathBuf {
@@ -138,10 +134,11 @@ pub fn init_db(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         INSERT OR IGNORE INTO settings (key, value) VALUES ('default_translate_engine', 'google');
         INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', 'light');
         INSERT OR IGNORE INTO settings (key, value) VALUES ('language', 'zh-CN');
-        INSERT OR IGNORE INTO settings (key, value) VALUES ('baidu_appid', '');
-        INSERT OR IGNORE INTO settings (key, value) VALUES ('baidu_secret', '');
         INSERT OR IGNORE INTO settings (key, value) VALUES ('google_api_key', '');
         INSERT OR IGNORE INTO settings (key, value) VALUES ('translate_proxy', '');
+        INSERT OR IGNORE INTO settings (key, value) VALUES ('radial_menu_enabled', '1');
+        INSERT OR IGNORE INTO settings (key, value) VALUES ('autostart', '0');
+        INSERT OR IGNORE INTO settings (key, value) VALUES ('shortcut_key', '');
 
         UPDATE settings SET value = 'google' WHERE key = 'default_translate_engine' AND value = 'builtin';
         ",
@@ -154,29 +151,68 @@ pub fn init_db(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[allow(dead_code)]
 pub fn prune_old_records(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    let days;
+    let image_contents: Vec<String>;
+
+    {
+        let state = app.state::<DbState>();
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+
+        let retention: String = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'clipboard_retention'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or_else(|_| "1month".to_string());
+
+        days = match retention.as_str() {
+            "1week" => 7,
+            "3months" => 90,
+            _ => 30,
+        };
+
+        // Collect image records before deletion for file cleanup
+        {
+            let mut stmt = conn.prepare(
+                "SELECT content FROM clipboard_records WHERE type = 'image' AND datetime(created_at) < datetime('now', ?1)",
+            )?;
+            let rows = stmt.query_map(params![format!("-{} days", days)], |row| {
+                row.get::<_, String>(0)
+            })?;
+            image_contents = rows.filter_map(|r| r.ok()).collect();
+        }
+
+        conn.execute(
+            "DELETE FROM clipboard_records WHERE datetime(created_at) < datetime('now', ?1)",
+            params![format!("-{} days", days)],
+        )?;
+    }
+
+    // Clean up image files and thumbnails only if no remaining records reference them.
+    // Content-hash filenames mean multiple records can share the same file on disk.
+    let base_dir = get_storage_dir(app);
     let state = app.state::<DbState>();
-    let conn = state.conn.lock().unwrap();
-
-    let retention: String = conn
-        .query_row(
-            "SELECT value FROM settings WHERE key = 'clipboard_retention'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or_else(|_| "1month".to_string());
-
-    let days = match retention.as_str() {
-        "1week" => 7,
-        "3months" => 90,
-        _ => 30,
-    };
-
-    conn.execute(
-        "DELETE FROM clipboard_records WHERE created_at < datetime('now', ?)",
-        params![format!("-{} days", days)],
-    )?;
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    for content in &image_contents {
+        let still_referenced: bool = conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM clipboard_records WHERE content = ?1",
+                params![content],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+        if still_referenced {
+            continue;
+        }
+        let file_path = base_dir.join(content);
+        let _ = std::fs::remove_file(&file_path);
+        if let Some(filename) = file_path.file_name() {
+            let thumb_path = file_path.parent().unwrap_or(&base_dir).join("thumbs").join(filename);
+            let _ = std::fs::remove_file(&thumb_path);
+        }
+    }
 
     Ok(())
 }
@@ -244,14 +280,39 @@ pub fn get_clipboard_records(
 
 #[tauri::command]
 pub fn delete_clipboard_record(app: AppHandle, id: String) -> Result<(), String> {
-    let state = app.state::<DbState>();
-    let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM clipboard_records WHERE id = ?1", params![id])
-        .map_err(|e| e.to_string())?;
+    let image_content: Option<String> = {
+        let state = app.state::<DbState>();
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+
+        let record: Option<(String, String)> = conn
+            .query_row(
+                "SELECT type, content FROM clipboard_records WHERE id = ?1",
+                params![id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .ok();
+
+        conn.execute("DELETE FROM clipboard_records WHERE id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+
+        match record {
+            Some((t, c)) if t == "image" => Some(c),
+            _ => None,
+        }
+    };
+
+    if let Some(content) = image_content {
+        let file_path = get_storage_dir(&app).join(&content);
+        let _ = std::fs::remove_file(&file_path);
+        if let Some(filename) = file_path.file_name() {
+            let thumb_path = file_path.parent().unwrap_or(std::path::Path::new("."))
+                .join("thumbs").join(filename);
+            let _ = std::fs::remove_file(&thumb_path);
+        }
+    }
+
     Ok(())
 }
-
-// End of delete_clipboard_record
 
 #[tauri::command]
 pub fn get_phrase_groups(app: AppHandle) -> Result<Vec<serde_json::Value>, String> {
@@ -450,12 +511,13 @@ pub fn clear_translation_history(app: AppHandle) -> Result<(), String> {
 pub fn get_setting(app: AppHandle, key: String) -> Result<String, String> {
     let state = app.state::<DbState>();
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    conn.query_row(
-        "SELECT value FROM settings WHERE key = ?1",
-        params![key],
-        |row| row.get(0),
-    )
-    .map_err(|e| e.to_string())
+    Ok(conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            params![key],
+            |row| row.get(0),
+        )
+        .unwrap_or_default())
 }
 
 #[tauri::command]
@@ -472,41 +534,55 @@ pub fn get_image_base64(app: AppHandle, path: String) -> Result<String, String> 
 
 #[tauri::command]
 pub fn get_image_thumbnail(app: AppHandle, path: String, max_size: u32) -> Result<String, String> {
-    let mut base_dir = get_storage_dir(&app);
-    base_dir.push(&path);
+    let base_dir = get_storage_dir(&app);
+    let image_path = base_dir.join(&path);
 
-    let bytes = std::fs::read(&base_dir)
-        .map_err(|e| format!("read image file: {}", e))?;
+    // Try pre-generated thumbnail first (saved during clipboard capture)
+    let thumb_dir = image_path.parent().unwrap_or(&base_dir).join("thumbs");
+    let filename = image_path.file_name().ok_or("invalid path")?;
+    let thumb_path = thumb_dir.join(filename);
 
-    let img = image::load_from_memory(&bytes)
-        .map_err(|e| format!("decode image: {}", e))?;
-
-    let (w, h) = (img.width(), img.height());
-    let scale = if w > max_size || h > max_size {
-        max_size as f32 / w.max(h) as f32
+    let thumb_bytes = if thumb_path.exists() {
+        std::fs::read(&thumb_path).map_err(|e| format!("read thumbnail: {}", e))?
     } else {
-        1.0
+        // Fallback: generate thumbnail from full image
+        let bytes = std::fs::read(&image_path)
+            .map_err(|e| format!("read image file: {}", e))?;
+        let img = image::load_from_memory(&bytes)
+            .map_err(|e| format!("decode image: {}", e))?;
+        let (w, h) = (img.width(), img.height());
+        let scale = if w > max_size || h > max_size {
+            max_size as f32 / w.max(h) as f32
+        } else {
+            1.0
+        };
+        let thumb = if scale < 1.0 {
+            let new_w = (w as f32 * scale) as u32;
+            let new_h = (h as f32 * scale) as u32;
+            img.resize(new_w, new_h, image::imageops::FilterType::Triangle)
+        } else {
+            img
+        };
+        let mut buf = std::io::Cursor::new(Vec::new());
+        thumb.write_to(&mut buf, image::ImageFormat::Png)
+            .map_err(|e| format!("encode thumbnail: {}", e))?;
+        let data = buf.into_inner();
+        // Save for future use
+        std::fs::create_dir_all(&thumb_dir).ok();
+        let _ = std::fs::write(&thumb_path, &data);
+        data
     };
-
-    let thumb = if scale < 1.0 {
-        let new_w = (w as f32 * scale) as u32;
-        let new_h = (h as f32 * scale) as u32;
-        img.resize(new_w, new_h, image::imageops::FilterType::Triangle)
-    } else {
-        img
-    };
-
-    let mut buf = std::io::Cursor::new(Vec::new());
-    thumb
-        .write_to(&mut buf, image::ImageFormat::Png)
-        .map_err(|e| format!("encode thumbnail: {}", e))?;
 
     use base64::Engine;
-    Ok(base64::engine::general_purpose::STANDARD.encode(buf.into_inner()))
+    Ok(base64::engine::general_purpose::STANDARD.encode(&thumb_bytes))
 }
 
 #[tauri::command]
 pub fn set_setting(app: AppHandle, key: String, value: String) -> Result<(), String> {
+    if key == "storage_path" {
+        return migrate_storage(&app, &value);
+    }
+
     let state = app.state::<DbState>();
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
@@ -514,6 +590,105 @@ pub fn set_setting(app: AppHandle, key: String, value: String) -> Result<(), Str
         params![key, value],
     )
     .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn migrate_storage(app: &AppHandle, new_path: &str) -> Result<(), String> {
+    let custom_dir = PathBuf::from(new_path);
+    std::fs::create_dir_all(&custom_dir).map_err(|e| format!("create dir: {}", e))?;
+    let custom_db = custom_dir.join("data.db");
+
+    // Collect all settings from current DB
+    let settings: Vec<(String, String)> = {
+        let state = app.state::<DbState>();
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare("SELECT key, value FROM settings")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+            .map_err(|e| e.to_string())?;
+        rows.filter_map(|r| r.ok()).collect()
+    };
+
+    // Create new DB with schema and settings at target location
+    let new_conn = Connection::open(&custom_db).map_err(|e| format!("open new db: {}", e))?;
+
+    new_conn
+        .execute_batch(
+            "
+            CREATE TABLE IF NOT EXISTS clipboard_records (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                content TEXT NOT NULL,
+                source_app TEXT DEFAULT '',
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_clipboard_created_at ON clipboard_records(created_at);
+            CREATE TABLE IF NOT EXISTS phrase_groups (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS phrases (
+                id TEXT PRIMARY KEY,
+                group_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (group_id) REFERENCES phrase_groups(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS translation_history (
+                id TEXT PRIMARY KEY,
+                source_text TEXT NOT NULL,
+                target_text TEXT NOT NULL,
+                source_lang TEXT DEFAULT 'auto',
+                target_lang TEXT NOT NULL,
+                engine TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_translation_created_at ON translation_history(created_at);
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+            ",
+        )
+        .map_err(|e| format!("create schema: {}", e))?;
+
+    // Copy settings to new DB
+    {
+        let mut stmt = new_conn
+            .prepare("INSERT INTO settings (key, value) VALUES (?1, ?2)")
+            .map_err(|e| e.to_string())?;
+        for (k, v) in &settings {
+            if k != "storage_path" && k != "shortcut_key" {
+                stmt.execute(params![k, v]).map_err(|e| e.to_string())?;
+            }
+        }
+        stmt.execute(params!["storage_path", new_path])
+            .map_err(|e| e.to_string())?;
+        stmt.execute(params!["shortcut_key", ""])
+            .map_err(|e| e.to_string())?;
+    }
+
+    // Update old DB's storage_path (for chain-following on restart) and switch connection
+    {
+        let state = app.state::<DbState>();
+        let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('storage_path', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1",
+            params![new_path],
+        )
+        .map_err(|e| e.to_string())?;
+        *conn = new_conn;
+    }
+
+    log::info!("Storage migrated to: {}", new_path);
     Ok(())
 }
 
@@ -586,6 +761,7 @@ pub async fn select_storage_folder(app: AppHandle) -> Result<String, String> {
     match result {
         Ok(Some(path)) => Ok(path.to_string()),
         Ok(None) => Err("cancelled".to_string()),
-        Err(_) => Err("timeout".to_string()),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err("timeout".to_string()),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err("cancelled".to_string()),
     }
 }

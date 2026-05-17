@@ -29,8 +29,6 @@ reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
-md5 = "0.7"
-rand = "0.8"
 enigo = "0.3"
 base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png"] }
@@ -44,3 +42,4 @@ windows = { version = "0.58", features = [
   "Win32_UI_Shell",
 ] }
 tauri-plugin-process = "2.3.1"
+tauri-plugin-autostart = "2.5.1"

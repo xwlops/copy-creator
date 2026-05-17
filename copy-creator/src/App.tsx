@@ -26,7 +26,7 @@ function App() {
   const { themeMode, toggleTheme } = useSettingsStore();
 
   const SIDEBAR_MIN = 60;
-  const SIDEBAR_MAX = 160;
+  const SIDEBAR_MAX = 130;
   const COLLAPSE_THRESHOLD = 120;
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_MAX);
   const [isCollapsed, setIsCollapsed] = useState(false);

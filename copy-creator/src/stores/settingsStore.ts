@@ -16,6 +16,7 @@ interface SettingsState {
   translateProxy: string;
   language: string;
   shortcutKey: string;
+  radialMenuEnabled: boolean;
 
   toggleTheme: () => void;
   loadSettings: () => Promise<void>;
@@ -35,6 +36,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   translateProxy: "",
   language: "zh-CN",
   shortcutKey: "",
+  radialMenuEnabled: true,
 
   toggleTheme: async () => {
     const next = get().themeMode === "light" ? "dark" : "light";
@@ -60,6 +62,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const translateProxy = await invoke<string>("get_setting", { key: "translate_proxy" });
       const language = await invoke<string>("get_setting", { key: "language" });
       const shortcutKey = await invoke<string>("get_setting", { key: "shortcut_key" });
+      const radialMenuEnabled = await invoke<string>("get_setting", { key: "radial_menu_enabled" });
 
       set({
         themeMode: (theme as ThemeMode) || "light",
@@ -74,6 +77,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         translateProxy: translateProxy || "",
         language: language || "zh-CN",
         shortcutKey: shortcutKey || "",
+        radialMenuEnabled: radialMenuEnabled !== "0",
       });
     } catch {
       // Settings not yet initialized, use defaults

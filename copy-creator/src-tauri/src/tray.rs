@@ -10,7 +10,15 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
     let menu = MenuBuilder::new(app).item(&show).item(&quit).build()?;
 
+    let icon_bytes = include_bytes!("../icons/icon.png");
+    let img = image::load_from_memory(icon_bytes)
+        .expect("Failed to decode tray icon")
+        .into_rgba8();
+    let (w, h) = img.dimensions();
+    let icon = tauri::image::Image::new_owned(img.into_raw(), w, h);
+
     let _tray = TrayIconBuilder::new()
+        .icon(icon)
         .menu(&menu)
         .tooltip("Copy Creator")
         .on_menu_event(|app, event| match event.id().as_ref() {

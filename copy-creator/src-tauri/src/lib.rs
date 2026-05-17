@@ -155,6 +155,7 @@ pub fn run() {
             db::select_storage_folder,
             translator::translate,
             shortcut::update_shortcut,
+            shortcut::set_radial_menu_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

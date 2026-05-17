@@ -49,10 +49,8 @@ pub async fn translate(
 
     let result = if engine == "ai" {
         translate_ai(&app, &text, &source_lang, &target_lang).await?
-    } else if engine == "google" {
-        translate_google(&app, &text, &source_lang, &target_lang).await?
     } else {
-        translate_baidu(&app, &text, &source_lang, &target_lang).await?
+        translate_google(&app, &text, &source_lang, &target_lang).await?
     };
 
     // Save to history/cache
@@ -149,64 +147,6 @@ async fn translate_ai(
         source_text: text.to_string(),
         target_text: translated,
         engine: "ai".to_string(),
-    })
-}
-
-async fn translate_baidu(
-    app: &tauri::AppHandle,
-    text: &str,
-    source_lang: &str,
-    target_lang: &str,
-) -> Result<TranslateResponse, String> {
-    let state = app.state::<crate::db::DbState>();
-    let (appid, secret) = {
-        let conn = state.conn.lock().map_err(|e| e.to_string())?;
-        let id: String = conn.query_row(
-            "SELECT value FROM settings WHERE key = 'baidu_appid'", [], |r| r.get(0),
-        ).unwrap_or_default();
-        let sk: String = conn.query_row(
-            "SELECT value FROM settings WHERE key = 'baidu_secret'", [], |r| r.get(0),
-        ).unwrap_or_default();
-        (id, sk)
-    };
-
-    if appid.is_empty() || secret.is_empty() {
-        return Err("百度翻译未配置，请在设置中填写百度翻译 AppID 和密钥".to_string());
-    }
-
-    let from = if source_lang == "auto" { "auto" } else { source_lang };
-    let salt = rand::random::<u32>().to_string();
-    let sign = format!("{:x}", md5::compute(format!("{}{}{}{}", appid, text, salt, secret)));
-
-    let client = reqwest::Client::new();
-    let resp = client
-        .post("https://fanyi-api.baidu.com/api/trans/vip/translate")
-        .form(&[
-            ("q", text),
-            ("from", from),
-            ("to", target_lang),
-            ("appid", &appid),
-            ("salt", &salt),
-            ("sign", &sign),
-        ])
-        .send().await.map_err(|e| format!("百度翻译请求失败: {}", e))?;
-
-    let json: serde_json::Value = resp.json().await.map_err(|e| format!("解析百度响应失败: {}", e))?;
-
-    if let Some(err_msg) = json.get("error_msg").and_then(|v| v.as_str()) {
-        let err_code = json.get("error_code").and_then(|v| v.as_str()).unwrap_or("");
-        return Err(format!("百度翻译错误 [{}]: {}", err_code, err_msg));
-    }
-
-    let translated = json["trans_result"][0]["dst"]
-        .as_str()
-        .unwrap_or("翻译失败")
-        .to_string();
-
-    Ok(TranslateResponse {
-        source_text: text.to_string(),
-        target_text: translated,
-        engine: "builtin".to_string(),
     })
 }
 

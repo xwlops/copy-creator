@@ -121,7 +121,7 @@
 }
 
 .settings-save-btn {
-  padding: 8px 24px;
+  padding: 8px 28px;
   border-radius: 10px;
   border: none;
   background: #333;
@@ -130,8 +130,47 @@
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.83, 0, 0.17, 1);
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  position: relative;
+  min-width: 72px;
+}
+
+.settings-save-btn:not(.saved):hover {
+  background: #555;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+}
+
+.settings-save-btn:not(.saved):active {
+  transform: scale(0.96);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.1s ease;
+}
+
+.settings-save-btn.saved {
+  background: #34C759;
+  color: white;
+  pointer-events: none;
+  animation: saveSuccess 2s ease forwards;
+}
+
+@keyframes saveSuccess {
+  0% {
+    transform: scale(1);
+  }
+  15% {
+    transform: scale(1.05);
+  }
+  30% {
+    transform: scale(0.97);
+  }
+  45% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 [data-theme="dark"] .settings-save-btn {
@@ -140,28 +179,9 @@
   box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
 }
 
-.settings-save-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
-}
-
-[data-theme="dark"] .settings-save-btn:hover {
-  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.15);
-}
-
-.settings-save-btn:active {
-  transform: scale(0.97);
-}
-
-.settings-save-btn.saved {
-  background: #34C759;
-  color: white;
-  pointer-events: none;
-}
-
-[data-theme="dark"] .settings-save-btn.saved {
-  background: #34C759;
-  color: white;
+[data-theme="dark"] .settings-save-btn:not(.saved):hover {
+  background: #e5e5e5;
+  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2);
 }
 
 .settings-storage-row {
@@ -327,4 +347,70 @@
 
 .shortcut-record-btn:active {
   transform: scale(0.95);
+}
+
+.radial-shortcut-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.radial-shortcut-key {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  background: var(--input-bg);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  user-select: none;
+}
+
+.toggle-switch {
+  width: 40px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  flex-shrink: 0;
+  outline: none;
+  padding: 0;
+}
+
+.toggle-switch.on {
+  background: #34C759;
+}
+
+.toggle-switch.off {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="dark"] .toggle-switch.off {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.toggle-switch.on .toggle-thumb {
+  transform: translateX(16px);
+}
+
+.toggle-switch:active .toggle-thumb {
+  width: 23px;
+}
+
+.toggle-switch.on:active .toggle-thumb {
+  transform: translateX(13px);
 }

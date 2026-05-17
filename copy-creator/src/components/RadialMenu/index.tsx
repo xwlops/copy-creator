@@ -10,7 +10,7 @@ import { HoverProgress } from "./HoverProgress";
 
 type TabKey = "clipboard" | "phrases";
 
-const HOVER_DELAY = 1000;
+const HOVER_DELAY = 500;
 const MAX_ITEMS = 30;
 
 function formatTime(dateStr: string): string {
@@ -57,6 +57,8 @@ export default function RadialMenu() {
 
   const isRightDownRef = useRef(false);
   const visibleRef = useRef(false);
+  const showTimestampRef = useRef(0);
+  const lastFocusRef = useRef(0);
   const selectedItemIdRef = useRef<string | null>(null);
   const activeTabRef = useRef<TabKey>("clipboard");
   const clipboardCategoryRef = useRef<ClipType>("all");
@@ -186,6 +188,7 @@ export default function RadialMenu() {
       const unDown = await listen<{ x: number; y: number }>("radial-menu-down", (e) => {
         console.log("[RadialMenu] radial-menu-down:", e.payload);
         isRightDownRef.current = true;
+        showTimestampRef.current = Date.now();
         startPosRef.current = { x: e.payload.x, y: e.payload.y };
 
         // Sync theme with main window on every show
@@ -208,6 +211,8 @@ export default function RadialMenu() {
         const cssY = e.payload.y;
 
         if (!visibleRef.current) {
+          showTimestampRef.current = Date.now();
+
           invoke<string>("get_setting", { key: "theme" }).then((theme) => {
             if (theme === "dark" || theme === "light") {
               document.documentElement.setAttribute("data-theme", theme);
@@ -276,20 +281,31 @@ export default function RadialMenu() {
       }
     };
 
+    const handleFocus = () => {
+      lastFocusRef.current = Date.now();
+    };
+
     const handleBlur = () => {
       if (isRightDownRef.current) {
-        resetState();
+        // Guard against spurious blur during window initialization.
+        // On first show after WebView2 warmup, the compositor may briefly
+        // lose focus during re-initialization. Ignore blurs within 500ms
+        // of the last focus event.
+        if (Date.now() - lastFocusRef.current < 500) return;
+        getCurrentWindow().hide();
       }
     };
 
     document.addEventListener("contextmenu", handleContextMenu, true);
     document.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("focus", handleFocus);
     window.addEventListener("blur", handleBlur);
 
     return () => {
       unlisteners.forEach((fn) => fn());
       document.removeEventListener("contextmenu", handleContextMenu, true);
       document.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("focus", handleFocus);
       window.removeEventListener("blur", handleBlur);
     };
   }, [resetState, updateHoverFromPoint]);

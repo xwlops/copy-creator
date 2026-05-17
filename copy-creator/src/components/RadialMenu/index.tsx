@@ -287,11 +287,10 @@ export default function RadialMenu() {
 
     const handleBlur = () => {
       if (isRightDownRef.current) {
-        // Guard against spurious blur during window initialization.
-        // On first show after WebView2 warmup, the compositor may briefly
-        // lose focus during re-initialization. Ignore blurs within 500ms
-        // of the last focus event.
-        if (Date.now() - lastFocusRef.current < 500) return;
+        // Ignore blurs within 1s of show — compositor initialization
+        // can cause spurious focus/blur on first show of transparent window.
+        if (Date.now() - showTimestampRef.current < 1000) return;
+        resetState();
         getCurrentWindow().hide();
       }
     };

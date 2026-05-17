@@ -23,7 +23,11 @@ const NAV_ITEMS = [
 function App() {
   const { t } = useTranslation();
   const [activePanel, setActivePanel] = useState<string>("clipboard");
-  const { themeMode, toggleTheme } = useSettingsStore();
+  const { themeMode, toggleTheme, loadSettings } = useSettingsStore();
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
   const SIDEBAR_MIN = 60;
   const SIDEBAR_MAX = 130;

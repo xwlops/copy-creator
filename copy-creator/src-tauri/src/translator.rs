@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::error::Error;
 use tauri::Manager;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -131,15 +130,15 @@ async fn translate_ai(
     let body_text = resp.text().await.map_err(|e| format!("读取响应失败: {}", e))?;
 
     if !status.is_success() {
-        return Err(format!("AI 翻译 HTTP {}: {}", status.as_u16(), body_text.chars().take(200).collect::<String>()));
+        return Err(format!("AI 翻译 HTTP {}: {}", status.as_u16(), &body_text[..body_text.len().min(80)]));
     }
 
     let json: serde_json::Value = serde_json::from_str(&body_text)
-        .map_err(|e| format!("解析响应失败: {}。原始响应: {}", e, body_text.chars().take(300).collect::<String>()))?;
+        .map_err(|e| format!("解析响应失败: {}", e))?;
 
     let translated = json["choices"][0]["message"]["content"]
         .as_str()
-        .ok_or_else(|| format!("AI 响应格式异常，未找到 choices[0].message.content。响应: {}", body_text.chars().take(300).collect::<String>()))?
+        .ok_or("AI 响应格式异常，未找到 choices[0].message.content")?
         .trim()
         .to_string();
 
@@ -198,7 +197,7 @@ async fn translate_google(
         let body = resp.text().await.map_err(|e| format!("读取 Google 响应失败: {}", e))?;
 
         if !status.is_success() {
-            return Err(format!("Google 翻译 HTTP {}: {}", status.as_u16(), body.chars().take(200).collect::<String>()));
+            return Err(format!("Google 翻译 HTTP {}: {}", status.as_u16(), &body[..body.len().min(80)]));
         }
 
         let json: serde_json::Value = serde_json::from_str(&body)
@@ -231,7 +230,8 @@ async fn translate_google(
         .map_err(|e| format!("解析 Google 响应失败: {}", e))?;
 
     if let Some(error) = json.get("error") {
-        return Err(format!("Google 翻译错误: {}", error["message"].as_str().unwrap_or("未知错误")));
+        let msg = error["message"].as_str().unwrap_or("未知错误");
+        return Err(format!("Google 翻译错误: {}", &msg[..msg.len().min(80)]));
     }
 
     let translated = json["data"]["translations"][0]["translatedText"]
@@ -247,18 +247,12 @@ async fn translate_google(
 }
 
 fn fmt_reqwest_error(err: &reqwest::Error) -> String {
-    let mut detail = format!("{}", err);
-    let mut source: Option<&dyn Error> = err.source();
-    while let Some(e) = source {
-        detail.push_str(&format!(" → {}", e));
-        source = e.source();
-    }
     if err.is_connect() {
-        format!("Google 翻译连接失败（可能需要配置代理）: {}", detail)
+        "Google 翻译连接失败，请检查代理配置".to_string()
     } else if err.is_timeout() {
-        format!("Google 翻译请求超时: {}", detail)
+        "Google 翻译请求超时".to_string()
     } else {
-        format!("Google 翻译请求失败: {}", detail)
+        format!("Google 翻译请求失败: {}", err)
     }
 }
 

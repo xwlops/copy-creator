@@ -53,7 +53,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
@@ -80,6 +80,8 @@ pub fn run() {
                     apply_backdrop_effect(&window);
                 }
             }
+
+            let is_autostart = std::env::args().any(|a| a == "--hidden");
 
             db::init_db(app.handle())?;
             db::prune_old_records(app.handle()).ok();
@@ -129,6 +131,13 @@ pub fn run() {
                     if let Err(e) = shortcut::register_keyboard_shortcut(app.handle(), &key) {
                         log::warn!("Failed to register keyboard shortcut '{}': {}", key, e);
                     }
+                }
+            }
+
+            // Show main window when not auto-started (after all init is done)
+            if !is_autostart {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
                 }
             }
 

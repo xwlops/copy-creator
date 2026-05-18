@@ -6,8 +6,8 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         tray::TrayIconBuilder,
     };
 
-    let show = MenuItemBuilder::with_id("show", "显示窗口").build(app)?;
-    let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
+    let show = MenuItemBuilder::with_id("show", "Show Window").build(app)?;
+    let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
     let menu = MenuBuilder::new(app).item(&show).item(&quit).build()?;
 
     let icon_bytes = include_bytes!("../icons/icon.png");

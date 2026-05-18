@@ -22,7 +22,7 @@
     "aiTranslation": "AI 翻译",
     "googleTranslation": "Google 翻译",
     "googleConfig": "Google 翻译配置",
-    "googleNote": "留空使用免费接口，填写 API Key 使用 Google Cloud Translation",
+    "googleNote": "留空使用免费接口（可能不稳定），填写 API Key 使用 Google Cloud Translation",
     "googleApiKey": "Google API Key (可选)",
     "translateProxy": "翻译代理地址",
     "translateProxyPlaceholder": "如 http://127.0.0.1:7890 或 socks5://127.0.0.1:7891",

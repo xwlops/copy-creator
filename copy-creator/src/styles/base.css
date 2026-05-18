@@ -162,11 +162,6 @@ html, body, #root {
   transform: translateZ(0);
 }
 
-*::-webkit-scrollbar:horizontal {
-  display: none;
-  height: 0;
-}
-
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

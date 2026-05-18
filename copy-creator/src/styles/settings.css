@@ -116,11 +116,11 @@
 
 .settings-actions {
   display: flex;
-  justify-content: flex-end;
   padding: 12px 0 4px;
 }
 
 .settings-save-btn {
+  width: 100%;
   padding: 8px 28px;
   border-radius: 10px;
   border: none;
@@ -133,7 +133,6 @@
   transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   position: relative;
-  min-width: 72px;
 }
 
 .settings-save-btn:not(.saved):hover {

@@ -21,7 +21,7 @@
         "fullscreen": false,
         "decorations": false,
         "alwaysOnTop": false,
-        "visible": true,
+        "visible": false,
         "center": true,
         "transparent": true,
         "shadow": true

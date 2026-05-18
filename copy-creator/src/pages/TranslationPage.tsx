@@ -87,7 +87,7 @@ export default function TranslationPage() {
       {error && (
         <div className="translation-error">
           <div className="error-icon-svg">{Icons.delete}</div>
-          <span>{error}</span>
+          <span className="translation-error-text">{error}</span>
         </div>
       )}
 

@@ -525,6 +525,17 @@ pub fn get_setting(app: AppHandle, key: String) -> Result<String, String> {
         .unwrap_or_default())
 }
 
+pub fn get_setting_sync(app: &AppHandle, key: &str) -> Option<String> {
+    let state = app.state::<DbState>();
+    let conn = state.conn.lock().ok()?;
+    conn.query_row(
+        "SELECT value FROM settings WHERE key = ?1",
+        params![key],
+        |row| row.get(0),
+    )
+    .ok()
+}
+
 #[tauri::command]
 pub fn get_image_base64(app: AppHandle, path: String) -> Result<String, String> {
     let mut base_dir = get_storage_dir(&app);

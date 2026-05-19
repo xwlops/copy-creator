@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { emit } from "@tauri-apps/api/event";
 import ClipboardPage from "./pages/ClipboardPage";
 import PhrasePage from "./pages/PhrasePage";
 import TranslationPage from "./pages/TranslationPage";
 import SettingsContent from "./components/SettingsContent";
 import { useSettingsStore } from "./stores/settingsStore";
 import { Icons } from "./components/Icons";
+import i18n from "./i18n";
 
 const PANEL_MAP: Record<string, { titleKey: string; component: React.ReactNode }> = {
   clipboard: { titleKey: "tabs.clipboard", component: <ClipboardPage /> },
@@ -26,13 +28,19 @@ function App() {
   const { themeMode, toggleTheme, loadSettings } = useSettingsStore();
 
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    loadSettings().then(() => {
+      const lang = useSettingsStore.getState().language;
+      if (lang && lang !== i18n.language) {
+        i18n.changeLanguage(lang);
+      }
+    });
+  }, []);
 
   const SIDEBAR_MIN = 60;
   const SIDEBAR_MAX = 130;
-  const COLLAPSE_THRESHOLD = 120;
-  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_MAX);
+  const SIDEBAR_DEFAULT = 80;
+  const COLLAPSE_THRESHOLD = 80;
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const isDragging = useRef(false);
   const dragStartX = useRef(0);

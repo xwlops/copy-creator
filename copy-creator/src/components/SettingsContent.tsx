@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
 import { useSettingsStore } from "../stores/settingsStore";
 import { StorageSection, LanguageSection, ShortcutSection, TranslationSection, StartupSection } from "./settings";
 
@@ -148,6 +149,8 @@ export default function SettingsContent({ embedded }: Props) {
 
     if (localLang !== i18n.language) {
       i18n.changeLanguage(localLang);
+      emit("language-changed", { language: localLang });
+      invoke("update_tray_language").catch(console.error);
     }
 
     await settings.loadSettings();

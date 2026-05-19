@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -7,6 +8,7 @@ import { useClipboardStore, type ClipType } from "../../stores/clipboardStore";
 import { usePhraseStore } from "../../stores/phraseStore";
 import { useHoverSwitch } from "./useHoverSwitch";
 import { HoverProgress } from "./HoverProgress";
+import i18n from "../../i18n";
 
 type TabKey = "clipboard" | "phrases";
 
@@ -78,6 +80,14 @@ export default function RadialMenu() {
         document.documentElement.setAttribute("data-theme", theme);
       }
     }).catch(() => {});
+
+    // Initial language load
+    invoke<string>("get_setting", { key: "language" }).then((lang) => {
+      if (lang && lang !== i18n.language) {
+        i18n.changeLanguage(lang);
+      }
+    }).catch(() => {});
+
     // Pre-load data so it's ready when the menu first shows
     useClipboardStore.getState().init();
     usePhraseStore.getState().init();
@@ -88,8 +98,17 @@ export default function RadialMenu() {
       document.documentElement.setAttribute("data-theme", e.payload.theme);
     }).then((fn) => { unlistenTheme = fn; });
 
+    // Listen for language changes from the main window
+    let unlistenLang: UnlistenFn | undefined;
+    listen<{ language: string }>("language-changed", (e) => {
+      if (e.payload.language !== i18n.language) {
+        i18n.changeLanguage(e.payload.language);
+      }
+    }).then((fn) => { unlistenLang = fn; });
+
     return () => {
       if (unlistenTheme) unlistenTheme();
+      if (unlistenLang) unlistenLang();
     };
   }, []);
 

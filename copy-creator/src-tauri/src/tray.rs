@@ -1,14 +1,27 @@
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
+use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::tray::TrayIconBuilder;
 
-pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    use tauri::{
-        menu::{MenuBuilder, MenuItemBuilder},
-        tray::TrayIconBuilder,
+pub struct TrayState {
+    pub tray: Mutex<Option<tauri::tray::TrayIcon>>,
+}
+
+fn build_tray_menu(app: &AppHandle, lang: &str) -> Result<tauri::menu::Menu<tauri::Wry>, Box<dyn std::error::Error>> {
+    let (show_text, quit_text) = if lang == "en" {
+        ("Show Window", "Quit")
+    } else {
+        ("显示窗口", "退出")
     };
 
-    let show = MenuItemBuilder::with_id("show", "Show Window").build(app)?;
-    let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-    let menu = MenuBuilder::new(app).item(&show).item(&quit).build()?;
+    let show = MenuItemBuilder::with_id("show", show_text).build(app)?;
+    let quit = MenuItemBuilder::with_id("quit", quit_text).build(app)?;
+    MenuBuilder::new(app).item(&show).item(&quit).build().map_err(Into::into)
+}
+
+pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    let lang = crate::db::get_setting_sync(app, "language").unwrap_or_else(|| "zh-CN".to_string());
+    let menu = build_tray_menu(app, &lang)?;
 
     let icon_bytes = include_bytes!("../icons/icon.png");
     let img = image::load_from_memory(icon_bytes)
@@ -17,7 +30,7 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let (w, h) = img.dimensions();
     let icon = tauri::image::Image::new_owned(img.into_raw(), w, h);
 
-    let _tray = TrayIconBuilder::new()
+    let tray = TrayIconBuilder::new()
         .icon(icon)
         .menu(&menu)
         .tooltip("Copy Creator")
@@ -52,6 +65,23 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .build(app)?;
+
+    let state = app.state::<TrayState>();
+    *state.tray.lock().unwrap() = Some(tray);
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_tray_language(app: AppHandle) -> Result<(), String> {
+    let lang = crate::db::get_setting_sync(&app, "language").unwrap_or_else(|| "zh-CN".to_string());
+    let menu = build_tray_menu(&app, &lang).map_err(|e| e.to_string())?;
+
+    let state = app.state::<TrayState>();
+    let tray_guard = state.tray.lock().map_err(|e| e.to_string())?;
+    if let Some(tray) = tray_guard.as_ref() {
+        tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
+    }
 
     Ok(())
 }

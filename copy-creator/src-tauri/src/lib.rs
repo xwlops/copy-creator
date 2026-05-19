@@ -104,6 +104,8 @@ pub fn run() {
             });
 
             clipboard::start_monitor(app.handle())?;
+
+            app.handle().manage(tray::TrayState { tray: std::sync::Mutex::new(None) });
             tray::create_tray(app.handle())?;
 
             shortcut::install_mouse_hook(app.handle());
@@ -176,6 +178,7 @@ pub fn run() {
             translator::translate,
             shortcut::update_shortcut,
             shortcut::set_radial_menu_enabled,
+            tray::update_tray_language,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

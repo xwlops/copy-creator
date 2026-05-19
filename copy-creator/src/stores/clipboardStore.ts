@@ -82,7 +82,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
       set((state) => {
         // Skip if record with same ID already exists (prevents loadRecords race)
         if (state.records.some((r) => r.id === newRecord.id)) return state;
-        return { records: [newRecord, ...state.records].slice(0, 500) };
+        return { records: [newRecord, ...state.records].slice(0, 2000) };
       });
     }).then((fn) => {
       unlisten = fn;
@@ -107,7 +107,7 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
       const s = get().search || undefined;
       const records = await invoke<ClipboardRecord[]>("get_clipboard_records", {
         search: s,
-        limit: 200,
+        limit: 2000,
       });
       set({ records });
     } catch (e) {

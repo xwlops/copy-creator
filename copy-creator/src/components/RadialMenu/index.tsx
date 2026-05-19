@@ -12,7 +12,7 @@ import i18n from "../../i18n";
 type TabKey = "clipboard" | "phrases";
 
 const HOVER_DELAY = 500;
-const MAX_ITEMS = 30;
+const MAX_ITEMS = 2000;
 
 function formatTime(dateStr: string): string {
   const date = new Date(dateStr);

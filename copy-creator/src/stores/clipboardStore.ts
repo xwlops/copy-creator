@@ -9,7 +9,7 @@ export type ClipType = (typeof CLIP_TYPES)[number];
 
 interface ClipboardRecord {
   id: string;
-  type: string;
+  type: "text" | "image" | "link" | "file";
   content: string;
   source_app: string;
   created_at: string;

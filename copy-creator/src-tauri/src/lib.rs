@@ -103,8 +103,29 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        let pressed = shortcut.to_string();
+
+                        // Check translate popup shortcut
+                        let translate_key = db::get_setting(app.clone(), "translate_shortcut_key".to_string())
+                            .unwrap_or_default();
+                        if !translate_key.is_empty() && pressed == translate_key {
+                            shortcut::show_translate_popup(app.clone())
+                                .unwrap_or_else(|e| log::warn!("show_translate_popup error: {}", e));
+                            return;
+                        }
+
+                        // Check radial menu keyboard shortcut
+                        let radial_key = db::get_setting(app.clone(), "radial_keyboard_shortcut".to_string())
+                            .unwrap_or_default();
+                        if !radial_key.is_empty() && pressed == radial_key {
+                            shortcut::show_radial_menu(app.clone())
+                                .unwrap_or_else(|e| log::warn!("show_radial_menu error: {}", e));
+                            return;
+                        }
+
+                        // Default: toggle main window
                         shortcut::toggle_window(app);
                     }
                 })
@@ -175,10 +196,39 @@ pub fn run() {
                 log::info!("Radial menu popup window created");
             }
 
+            // Configure translate popup window
+            {
+                let popup = app.get_webview_window("translate-popup").unwrap();
+                let _ = popup.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
+                #[cfg(target_os = "windows")]
+                apply_backdrop_effect(&popup);
+                #[cfg(target_os = "macos")]
+                apply_vibrancy_effect(&popup);
+                log::info!("Translate popup window created");
+            }
+
             if let Ok(key) = db::get_setting(app.handle().clone(), "shortcut_key".to_string()) {
                 if !key.is_empty() {
                     if let Err(e) = shortcut::register_keyboard_shortcut(app.handle(), &key) {
                         log::warn!("Failed to register keyboard shortcut '{}': {}", key, e);
+                    }
+                }
+            }
+
+            // Register radial menu keyboard shortcut (alternative to mouse)
+            if let Ok(key) = db::get_setting(app.handle().clone(), "radial_keyboard_shortcut".to_string()) {
+                if !key.is_empty() {
+                    if let Err(e) = shortcut::register_keyboard_shortcut(app.handle(), &key) {
+                        log::warn!("Failed to register radial keyboard shortcut '{}': {}", key, e);
+                    }
+                }
+            }
+
+            // Register translate popup shortcut
+            if let Ok(key) = db::get_setting(app.handle().clone(), "translate_shortcut_key".to_string()) {
+                if !key.is_empty() {
+                    if let Err(e) = shortcut::register_keyboard_shortcut(app.handle(), &key) {
+                        log::warn!("Failed to register translate shortcut '{}': {}", key, e);
                     }
                 }
             }
@@ -220,6 +270,10 @@ pub fn run() {
             translator::translate,
             shortcut::update_shortcut,
             shortcut::set_radial_menu_enabled,
+            shortcut::show_radial_menu,
+            shortcut::update_radial_keyboard_shortcut,
+            shortcut::show_translate_popup,
+            shortcut::update_translate_shortcut,
             tray::update_tray_language,
         ])
         .run(tauri::generate_context!())

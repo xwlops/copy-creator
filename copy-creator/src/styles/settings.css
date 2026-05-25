@@ -348,6 +348,16 @@
   transform: scale(0.95);
 }
 
+.shortcut-hint {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  line-height: 1.3;
+}
+
+[data-theme="dark"] .shortcut-hint {
+  color: rgba(255, 255, 255, 0.35);
+}
+
 .radial-shortcut-right {
   display: flex;
   align-items: center;

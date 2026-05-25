@@ -39,6 +39,20 @@
         "visible": false,
         "shadow": true,
         "skipTaskbar": true
+      },
+      {
+        "label": "translate-popup",
+        "url": "index.html?translate=1",
+        "title": "",
+        "width": 360,
+        "height": 220,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "visible": false,
+        "shadow": true,
+        "skipTaskbar": true
       }
     ],
     "security": {

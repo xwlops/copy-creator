@@ -1,9 +1,52 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { useSettingsStore } from "../stores/settingsStore";
 import { StorageSection, LanguageSection, ShortcutSection, TranslationSection, StartupSection } from "./settings";
+
+interface RecordingState {
+  active: boolean;
+  handler: ((e: KeyboardEvent) => void) | null;
+}
+
+function createShortcutHandler(setKey: (k: string) => void, done: () => void): (e: KeyboardEvent) => void {
+  return (e: KeyboardEvent) => {
+    if (["Control", "Alt", "Shift", "Meta", "CapsLock", "NumLock", "ScrollLock", "Dead"].includes(e.key)) {
+      return;
+    }
+
+    if (!e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+      return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const parts: string[] = [];
+    if (e.ctrlKey) parts.push("Ctrl");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.metaKey) parts.push("Super");
+
+    const code = e.code;
+    let keyName: string;
+    if (code.startsWith("Key")) {
+      keyName = code[3];
+    } else if (code.startsWith("Digit")) {
+      keyName = code[5];
+    } else if (code.startsWith("Numpad")) {
+      keyName = "NumPad" + code.substring(6);
+    } else {
+      keyName = e.key;
+      if (keyName === " ") keyName = "Space";
+    }
+    parts.push(keyName);
+
+    setKey(parts.join("+"));
+    done();
+  };
+}
 
 interface Props {
   embedded?: boolean;
@@ -24,11 +67,23 @@ export default function SettingsContent({ embedded }: Props) {
   const [localShortcutKey, setLocalShortcutKey] = useState(settings.shortcutKey);
   const [localRadialMenuEnabled, setLocalRadialMenuEnabled] = useState(settings.radialMenuEnabled);
   const [localAutostart, setLocalAutostart] = useState(settings.autostartEnabled);
+  const [localRadialKeyboardShortcut, setLocalRadialKeyboardShortcut] = useState(settings.radialKeyboardShortcut);
+  const [localTranslateShortcutKey, setLocalTranslateShortcutKey] = useState(settings.translateShortcutKey);
+
   const [recording, setRecording] = useState(false);
-  const recordingRef = useRef(false);
-  const keydownHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
+  const [radialKbRecording, setRadialKbRecording] = useState(false);
+  const [translateRecording, setTranslateRecording] = useState(false);
+
   const [storagePath, setStoragePath] = useState("");
   const [saved, setSaved] = useState(false);
+
+  // Use useRef for the active flag and handler so callbacks always see latest values
+  const recordingActiveRef = useRef(false);
+  const recordingHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
+  const radialKbActiveRef = useRef(false);
+  const radialKbHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
+  const translateActiveRef = useRef(false);
+  const translateHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
 
   useEffect(() => {
     settings.loadSettings();
@@ -47,77 +102,72 @@ export default function SettingsContent({ embedded }: Props) {
     setLocalShortcutKey(settings.shortcutKey);
     setLocalRadialMenuEnabled(settings.radialMenuEnabled);
     setLocalAutostart(settings.autostartEnabled);
+    setLocalRadialKeyboardShortcut(settings.radialKeyboardShortcut);
+    setLocalTranslateShortcutKey(settings.translateShortcutKey);
   }, [settings, i18n.language]);
 
-  const startRecording = () => {
-    recordingRef.current = true;
-    setRecording(true);
-    setLocalShortcutKey("");
-
-    const cleanup = () => {
-      document.removeEventListener("keydown", handler, true);
-      keydownHandlerRef.current = null;
-    };
-
-    const handler = (e: KeyboardEvent) => {
-      if (!recordingRef.current) {
-        cleanup();
-        return;
+  const startRecordingFor = useCallback(
+    (
+      setKey: (k: string) => void,
+      activeRef: React.MutableRefObject<boolean>,
+      handlerRef: React.MutableRefObject<((e: KeyboardEvent) => void) | null>,
+      setActiveState: (v: boolean) => void,
+    ) => {
+      // Clean up any existing handler
+      if (handlerRef.current) {
+        document.removeEventListener("keydown", handlerRef.current, true);
+        handlerRef.current = null;
       }
 
-      // Ignore modifier-only presses
-      if (["Control", "Alt", "Shift", "Meta", "CapsLock", "NumLock", "ScrollLock", "Dead"].includes(e.key)) {
-        return;
+      activeRef.current = true;
+      setActiveState(true);
+      setKey("");
+
+      const handler = createShortcutHandler(setKey, () => {
+        activeRef.current = false;
+        setActiveState(false);
+        if (handlerRef.current) {
+          document.removeEventListener("keydown", handlerRef.current, true);
+          handlerRef.current = null;
+        }
+      });
+
+      handlerRef.current = handler;
+      document.addEventListener("keydown", handler, true);
+    },
+    [],
+  );
+
+  const stopRecordingFor = useCallback(
+    (
+      activeRef: React.MutableRefObject<boolean>,
+      handlerRef: React.MutableRefObject<((e: KeyboardEvent) => void) | null>,
+      setActiveState: (v: boolean) => void,
+    ) => {
+      activeRef.current = false;
+      setActiveState(false);
+      if (handlerRef.current) {
+        document.removeEventListener("keydown", handlerRef.current, true);
+        handlerRef.current = null;
       }
+    },
+    [],
+  );
 
-      // Require at least one modifier
-      if (!e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
-        return;
-      }
+  const startRecording = () =>
+    startRecordingFor(setLocalShortcutKey, recordingActiveRef, recordingHandlerRef, setRecording);
+  const stopRecording = () =>
+    stopRecordingFor(recordingActiveRef, recordingHandlerRef, setRecording);
 
-      e.preventDefault();
-      e.stopPropagation();
+  const startRadialKbRecording = () =>
+    startRecordingFor(setLocalRadialKeyboardShortcut, radialKbActiveRef, radialKbHandlerRef, setRadialKbRecording);
+  const stopRadialKbRecording = () =>
+    stopRecordingFor(radialKbActiveRef, radialKbHandlerRef, setRadialKbRecording);
 
-      const parts: string[] = [];
-      if (e.ctrlKey) parts.push("Ctrl");
-      if (e.altKey) parts.push("Alt");
-      if (e.shiftKey) parts.push("Shift");
-      if (e.metaKey) parts.push("Super");
-
-      // Map physical key code to layout-independent name
-      const code = e.code;
-      let keyName: string;
-      if (code.startsWith("Key")) {
-        keyName = code[3]; // KeyA → A
-      } else if (code.startsWith("Digit")) {
-        keyName = code[5]; // Digit1 → 1
-      } else if (code.startsWith("Numpad")) {
-        keyName = "NumPad" + code.substring(6);
-      } else {
-        keyName = e.key;
-        if (keyName === " ") keyName = "Space";
-      }
-      parts.push(keyName);
-
-      const shortcut = parts.join("+");
-      setLocalShortcutKey(shortcut);
-      recordingRef.current = false;
-      setRecording(false);
-      cleanup();
-    };
-
-    keydownHandlerRef.current = handler;
-    document.addEventListener("keydown", handler, true);
-  };
-
-  const stopRecording = () => {
-    recordingRef.current = false;
-    setRecording(false);
-    if (keydownHandlerRef.current) {
-      document.removeEventListener("keydown", keydownHandlerRef.current, true);
-      keydownHandlerRef.current = null;
-    }
-  };
+  const startTranslateRecording = () =>
+    startRecordingFor(setLocalTranslateShortcutKey, translateActiveRef, translateHandlerRef, setTranslateRecording);
+  const stopTranslateRecording = () =>
+    stopRecordingFor(translateActiveRef, translateHandlerRef, setTranslateRecording);
 
   const handleSave = async () => {
     await settings.setSettingsBatch({
@@ -139,6 +189,30 @@ export default function SettingsContent({ embedded }: Props) {
         await settings.setSetting("shortcut_key", newKey);
       } catch (e) {
         console.error("Failed to update shortcut:", e);
+      }
+    }
+
+    // Radial keyboard shortcut
+    const oldRadialKb = settings.radialKeyboardShortcut;
+    const newRadialKb = localRadialKeyboardShortcut;
+    if (oldRadialKb !== newRadialKb) {
+      try {
+        await invoke("update_radial_keyboard_shortcut", { oldShortcut: oldRadialKb, newShortcut: newRadialKb });
+        await settings.setSetting("radial_keyboard_shortcut", newRadialKb);
+      } catch (e) {
+        console.error("Failed to update radial keyboard shortcut:", e);
+      }
+    }
+
+    // Translate shortcut
+    const oldTranslateKey = settings.translateShortcutKey;
+    const newTranslateKey = localTranslateShortcutKey;
+    if (oldTranslateKey !== newTranslateKey) {
+      try {
+        await invoke("update_translate_shortcut", { oldShortcut: oldTranslateKey, newShortcut: newTranslateKey });
+        await settings.setSetting("translate_shortcut_key", newTranslateKey);
+      } catch (e) {
+        console.error("Failed to update translate shortcut:", e);
       }
     }
 
@@ -182,6 +256,16 @@ export default function SettingsContent({ embedded }: Props) {
         stopRecording={stopRecording}
         localRadialMenuEnabled={localRadialMenuEnabled}
         setLocalRadialMenuEnabled={setLocalRadialMenuEnabled}
+        localRadialKeyboardShortcut={localRadialKeyboardShortcut}
+        setLocalRadialKeyboardShortcut={setLocalRadialKeyboardShortcut}
+        radialKbRecording={radialKbRecording}
+        startRadialKbRecording={startRadialKbRecording}
+        stopRadialKbRecording={stopRadialKbRecording}
+        localTranslateShortcutKey={localTranslateShortcutKey}
+        setLocalTranslateShortcutKey={setLocalTranslateShortcutKey}
+        translateRecording={translateRecording}
+        startTranslateRecording={startTranslateRecording}
+        stopTranslateRecording={stopTranslateRecording}
       />
 
       <StartupSection

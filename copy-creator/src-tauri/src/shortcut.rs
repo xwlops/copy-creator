@@ -271,6 +271,161 @@ pub fn update_shortcut(
 }
 
 #[tauri::command]
+pub fn show_radial_menu(app: AppHandle) -> Result<(), String> {
+    if !RADIAL_MENU_ENABLED.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
+    if let Some(window) = app.get_webview_window("radial-menu") {
+        crate::paste::save_foreground_window();
+
+        #[cfg(target_os = "windows")]
+        {
+            use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+            use windows::Win32::Foundation::POINT;
+            let mut point = POINT { x: 0, y: 0 };
+            unsafe { GetCursorPos(&mut point).ok().unwrap_or_default(); }
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let half_w = (150.0 * scale) as i32;
+            let top_off = (30.0 * scale) as i32;
+            let _ = window.set_position(tauri::Position::Physical(
+                tauri::PhysicalPosition::new(point.x - half_w, point.y - top_off),
+            ));
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            use core_graphics::event::CGEvent;
+            use core_graphics::event_source::CGEventSource;
+            use core_graphics::event_source::CGEventSourceStateID::HIDSystemState;
+
+            let source = CGEventSource::new(HIDSystemState).ok();
+            let event = CGEvent::new(source.as_ref()).ok();
+            if let Some(ev) = event {
+                let loc = ev.location();
+                let scale = window.scale_factor().unwrap_or(2.0);
+                let half_w = (150.0 * scale) as f64;
+                let top_off = (30.0 * scale) as f64;
+                let x = (loc.x - half_w) / scale as f64;
+                let y = (loc.y - top_off) / scale as f64;
+                let _ = window.set_position(tauri::Position::Physical(
+                    tauri::PhysicalPosition::new(x as i32, y as i32),
+                ));
+            }
+        }
+
+        let scale = window.scale_factor().unwrap_or(1.0);
+        let css_x = ((150.0 * scale) / scale).round() as i32;
+        let css_y = ((30.0 * scale) / scale).round() as i32;
+
+        let theme = crate::db::get_setting(app.clone(), "theme".to_string())
+            .unwrap_or_else(|_| "light".to_string());
+
+        let _ = app.emit(
+            "radial-menu-down",
+            RadialMenuDownPayload { x: css_x, y: css_y, theme },
+        );
+
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_radial_keyboard_shortcut(
+    app: AppHandle,
+    old_shortcut: String,
+    new_shortcut: String,
+) -> Result<(), String> {
+    if !old_shortcut.is_empty() {
+        let _ = unregister_keyboard_shortcut(&app, &old_shortcut);
+    }
+    if !new_shortcut.is_empty() {
+        register_keyboard_shortcut(&app, &new_shortcut)
+            .map_err(|e| format!("Failed to register radial keyboard shortcut: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn show_translate_popup(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+
+    let clipboard_text = app.clipboard().read_text()
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+
+    if clipboard_text.is_empty() {
+        log::info!("[show_translate_popup] clipboard is empty");
+        return Ok(());
+    }
+
+    if let Some(window) = app.get_webview_window("translate-popup") {
+        crate::paste::save_foreground_window();
+
+        #[cfg(target_os = "windows")]
+        {
+            use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+            use windows::Win32::Foundation::POINT;
+            let mut point = POINT { x: 0, y: 0 };
+            unsafe { GetCursorPos(&mut point).ok().unwrap_or_default(); }
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let half_w = (180.0 * scale) as i32;
+            let top_off = (10.0 * scale) as i32;
+            let _ = window.set_position(tauri::Position::Physical(
+                tauri::PhysicalPosition::new(point.x - half_w, point.y - top_off),
+            ));
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            use core_graphics::event::CGEvent;
+            use core_graphics::event_source::CGEventSource;
+            use core_graphics::event_source::CGEventSourceStateID::HIDSystemState;
+
+            let source = CGEventSource::new(HIDSystemState).ok();
+            let event = CGEvent::new(source.as_ref()).ok();
+            if let Some(ev) = event {
+                let loc = ev.location();
+                let scale = window.scale_factor().unwrap_or(2.0);
+                let half_w = (180.0 * scale) as f64;
+                let top_off = (10.0 * scale) as f64;
+                let x = (loc.x - half_w) / scale as f64;
+                let y = (loc.y - top_off) / scale as f64;
+                let _ = window.set_position(tauri::Position::Physical(
+                    tauri::PhysicalPosition::new(x as i32, y as i32),
+                ));
+            }
+        }
+
+        let _ = app.emit("translate-popup-text", &clipboard_text);
+
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_translate_shortcut(
+    app: AppHandle,
+    old_shortcut: String,
+    new_shortcut: String,
+) -> Result<(), String> {
+    if !old_shortcut.is_empty() {
+        let _ = unregister_keyboard_shortcut(&app, &old_shortcut);
+    }
+    if !new_shortcut.is_empty() {
+        register_keyboard_shortcut(&app, &new_shortcut)
+            .map_err(|e| format!("Failed to register translate shortcut: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn set_radial_menu_enabled(app: AppHandle, enabled: bool) -> Result<(), String> {
     RADIAL_MENU_ENABLED.store(enabled, Ordering::SeqCst);
     let state = app.state::<crate::db::DbState>();

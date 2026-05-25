@@ -8,6 +8,16 @@ interface ShortcutSectionProps {
   stopRecording: () => void;
   localRadialMenuEnabled: boolean;
   setLocalRadialMenuEnabled: (enabled: boolean) => void;
+  localRadialKeyboardShortcut: string;
+  setLocalRadialKeyboardShortcut: (key: string) => void;
+  radialKbRecording: boolean;
+  startRadialKbRecording: () => void;
+  stopRadialKbRecording: () => void;
+  localTranslateShortcutKey: string;
+  setLocalTranslateShortcutKey: (key: string) => void;
+  translateRecording: boolean;
+  startTranslateRecording: () => void;
+  stopTranslateRecording: () => void;
 }
 
 export function ShortcutSection({
@@ -17,6 +27,14 @@ export function ShortcutSection({
   stopRecording,
   localRadialMenuEnabled,
   setLocalRadialMenuEnabled,
+  localRadialKeyboardShortcut,
+  radialKbRecording,
+  startRadialKbRecording,
+  stopRadialKbRecording,
+  localTranslateShortcutKey,
+  translateRecording,
+  startTranslateRecording,
+  stopTranslateRecording,
 }: ShortcutSectionProps) {
   const { t } = useTranslation();
 
@@ -38,6 +56,7 @@ export function ShortcutSection({
                 {recording ? t("settings.stopRecord") : t("settings.recordShortcut")}
               </button>
             </div>
+            <span className="shortcut-hint">{t("settings.keyboardOnlyHint")}</span>
           </div>
         </div>
         <div className="settings-row">
@@ -51,6 +70,40 @@ export function ShortcutSection({
             >
               <span className="toggle-thumb" />
             </button>
+          </div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row-label">{t("settings.radialKeyboardShortcut")}</div>
+          <div className="shortcut-setting">
+            <div className="shortcut-keyboard-row">
+              <span className={`shortcut-display${radialKbRecording ? " recording" : ""}`}>
+                {radialKbRecording ? t("settings.recording") : (localRadialKeyboardShortcut || t("settings.radialKeyboardShortcutPlaceholder"))}
+              </span>
+              <button
+                className="shortcut-record-btn"
+                onClick={radialKbRecording ? stopRadialKbRecording : startRadialKbRecording}
+              >
+                {radialKbRecording ? t("settings.stopRecord") : t("settings.recordShortcut")}
+              </button>
+            </div>
+            <span className="shortcut-hint">{t("settings.keyboardOnlyHint")}</span>
+          </div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row-label">{t("settings.translateShortcut")}</div>
+          <div className="shortcut-setting">
+            <div className="shortcut-keyboard-row">
+              <span className={`shortcut-display${translateRecording ? " recording" : ""}`}>
+                {translateRecording ? t("settings.recording") : (localTranslateShortcutKey || t("settings.translateShortcutPlaceholder"))}
+              </span>
+              <button
+                className="shortcut-record-btn"
+                onClick={translateRecording ? stopTranslateRecording : startTranslateRecording}
+              >
+                {translateRecording ? t("settings.stopRecord") : t("settings.recordShortcut")}
+              </button>
+            </div>
+            <span className="shortcut-hint">{t("settings.keyboardOnlyHint")}</span>
           </div>
         </div>
       </div>

@@ -19,6 +19,8 @@ interface SettingsState {
   language: string;
   shortcutKey: string;
   radialMenuEnabled: boolean;
+  radialKeyboardShortcut: string;
+  translateShortcutKey: string;
   autostartEnabled: boolean;
 
   toggleTheme: () => void;
@@ -42,6 +44,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   language: "zh-CN",
   shortcutKey: "",
   radialMenuEnabled: true,
+  radialKeyboardShortcut: "",
+  translateShortcutKey: "",
   autostartEnabled: false,
 
   toggleTheme: () => {
@@ -69,6 +73,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         language: settings.language || "zh-CN",
         shortcutKey: settings.shortcut_key || "",
         radialMenuEnabled: settings.radial_menu_enabled !== "0",
+        radialKeyboardShortcut: settings.radial_keyboard_shortcut || "",
+        translateShortcutKey: settings.translate_shortcut_key || "",
       });
 
       // Read autostart state from the OS (plugin)

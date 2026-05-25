@@ -1,0 +1,196 @@
+/* === Translate Popup === */
+.translate-popup {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--card-inner-bg);
+  backdrop-filter: blur(60px) saturate(180%);
+  -webkit-backdrop-filter: blur(60px) saturate(180%);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.25),
+    0 0 0 0.5px rgba(255, 255, 255, 0.4) inset;
+  border-radius: 14px;
+  overflow: hidden;
+  padding: 12px 14px;
+  gap: 8px;
+  animation: translatePopupIn 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-theme="dark"] .translate-popup {
+  background: rgba(30, 30, 30, 0.92);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 0 0.5px rgba(255, 255, 255, 0.08) inset;
+}
+
+@keyframes translatePopupIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.translate-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.translate-popup-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+
+.translate-popup-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.translate-popup-copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: var(--chip-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.translate-popup-copy-btn:hover {
+  background: var(--chip-hover-bg);
+  color: var(--text-primary);
+}
+
+.translate-popup-copy-btn.copied {
+  background: rgba(52, 199, 89, 0.15);
+  color: #34C759;
+}
+
+.translate-popup-copy-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.translate-popup-source {
+  flex-shrink: 0;
+}
+
+.translate-popup-source-text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  margin: 0;
+}
+
+.translate-popup-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.translate-popup-result {
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 6px 8px;
+  transition: background 0.15s;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.translate-popup-result:hover {
+  background: var(--chip-hover-bg);
+}
+
+.translate-popup-result::-webkit-scrollbar {
+  width: 4px;
+}
+
+.translate-popup-result::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.translate-popup-result::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 2px;
+}
+
+[data-theme="dark"] .translate-popup-result::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.translate-popup-copy-hint {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.15s;
+  margin-top: 4px;
+}
+
+.translate-popup-result:hover .translate-popup-copy-hint {
+  opacity: 1;
+}
+
+.translate-popup-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  flex: 1;
+}
+
+.translate-popup-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 59, 48, 0.08);
+  border: 1px solid rgba(255, 59, 48, 0.15);
+  color: #FF3B30;
+  font-size: var(--text-sm);
+  flex: 1;
+}
+
+.translate-popup-error svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.translate-popup-empty {
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  padding: 8px 0;
+  text-align: center;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-theme="dark"] .translate-popup-empty {
+  color: rgba(255, 255, 255, 0.35);
+}

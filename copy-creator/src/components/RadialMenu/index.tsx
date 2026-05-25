@@ -302,9 +302,39 @@ export default function RadialMenu() {
 
     const handleBlur = () => {
       if (isRightDownRef.current) {
-        // Ignore blurs within 1s of show — compositor initialization
-        // can cause spurious focus/blur on first show of transparent window.
         if (Date.now() - showTimestampRef.current < 1000) return;
+        resetState();
+        getCurrentWindow().hide();
+      }
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      const el = (e.target as HTMLElement).closest("[data-radial-item-id]");
+      if (!el) return;
+      const id = el.getAttribute("data-radial-item-id");
+      if (!id) return;
+
+      const { records, pasteRecord } = useClipboardStore.getState();
+      const record = records.find((r) => r.id === id);
+      if (record) {
+        pasteRecord(record).then(() => {
+          resetState();
+          getCurrentWindow().hide();
+        });
+      } else {
+        const { phrases, pastePhrase } = usePhraseStore.getState();
+        const phrase = phrases.find((p) => p.id === id);
+        if (phrase) {
+          pastePhrase(phrase).then(() => {
+            resetState();
+            getCurrentWindow().hide();
+          });
+        }
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
         resetState();
         getCurrentWindow().hide();
       }
@@ -312,6 +342,8 @@ export default function RadialMenu() {
 
     document.addEventListener("contextmenu", handleContextMenu, true);
     document.addEventListener("wheel", handleWheel, { passive: false });
+    document.addEventListener("click", handleClick);
+    document.addEventListener("keydown", handleKeyDown);
     window.addEventListener("focus", handleFocus);
     window.addEventListener("blur", handleBlur);
 
@@ -319,6 +351,8 @@ export default function RadialMenu() {
       unlisteners.forEach((fn) => fn());
       document.removeEventListener("contextmenu", handleContextMenu, true);
       document.removeEventListener("wheel", handleWheel);
+      document.removeEventListener("click", handleClick);
+      document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("blur", handleBlur);
     };

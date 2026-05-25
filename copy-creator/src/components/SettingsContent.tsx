@@ -5,11 +5,6 @@ import { emit } from "@tauri-apps/api/event";
 import { useSettingsStore } from "../stores/settingsStore";
 import { StorageSection, LanguageSection, ShortcutSection, TranslationSection, StartupSection } from "./settings";
 
-interface RecordingState {
-  active: boolean;
-  handler: ((e: KeyboardEvent) => void) | null;
-}
-
 function createShortcutHandler(setKey: (k: string) => void, done: () => void): (e: KeyboardEvent) => void {
   return (e: KeyboardEvent) => {
     if (["Control", "Alt", "Shift", "Meta", "CapsLock", "NumLock", "ScrollLock", "Dead"].includes(e.key)) {

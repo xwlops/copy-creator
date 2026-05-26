@@ -75,6 +75,14 @@ fn apply_vibrancy_effect(window: &tauri::WebviewWindow) {
             return;
         }
 
+        // Apply rounded corners to the window
+        let _: () = msg_send![content_view, setWantsLayer: 1i8];
+        let layer: id = msg_send![content_view, layer];
+        if !layer.is_null() {
+            let _: () = msg_send![layer, setCornerRadius: 10.0f64];
+            let _: () = msg_send![layer, setMasksToBounds: 1i8];
+        }
+
         // Create NSVisualEffectView
         if let Some(ns_vev_class) = Class::get("NSVisualEffectView") {
             let frame: id = msg_send![content_view, bounds];

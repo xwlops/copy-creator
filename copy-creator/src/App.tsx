@@ -124,6 +124,11 @@ function App() {
 
   return (
     <div className="app-container">
+      <div className="macos-traffic-lights">
+        <button className="macos-traffic-btn macos-traffic-close" onClick={handleHide} title={t("common.hide")} />
+        <button className="macos-traffic-btn macos-traffic-minimize" onClick={handleMinimize} title="Minimize" />
+        <button className="macos-traffic-btn macos-traffic-zoom" onClick={handleZoom} title="Zoom" />
+      </div>
       <div
         ref={sidebarRef}
         className={`sidebar ${isCollapsed ? "collapsed" : ""}`}
@@ -185,11 +190,6 @@ function App() {
 
       <div className="panel-area">
         <div className="panel-window-header" data-tauri-drag-region>
-          <div className="macos-traffic-lights">
-            <button className="macos-traffic-btn macos-traffic-close" onClick={handleHide} title={t("common.hide")} />
-            <button className="macos-traffic-btn macos-traffic-minimize" onClick={handleMinimize} title="Minimize" />
-            <button className="macos-traffic-btn macos-traffic-zoom" onClick={handleZoom} title="Zoom" />
-          </div>
           <h3 className="panel-window-title" data-tauri-drag-region>
             {isSettingsPanel ? t("settings.title") : panelInfo ? t(panelInfo.titleKey) : ""}
           </h3>

@@ -4,6 +4,21 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn AXIsProcessTrusted() -> bool;
+}
+
+#[cfg(target_os = "macos")]
+fn is_accessibility_permitted() -> bool {
+    unsafe { AXIsProcessTrusted() }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_accessibility_permitted() -> bool {
+    true
+}
+
 static RADIAL_MENU_ENABLED: AtomicBool = AtomicBool::new(true);
 
 #[cfg(target_os = "windows")]
@@ -354,6 +369,14 @@ pub fn update_radial_keyboard_shortcut(
 /// Saves and restores clipboard to be polite to the user.
 fn capture_selected_text(app: &AppHandle) -> String {
     use tauri_plugin_clipboard_manager::ClipboardExt;
+
+    // Skip keyboard simulation if the app lacks accessibility permission.
+    // Calling Enigo without trust triggers the macOS permission dialog every time,
+    // even if the user already granted it for a previous build.
+    if !is_accessibility_permitted() {
+        log::info!("[capture_selected_text] accessibility not trusted, skipping keyboard simulation");
+        return String::new();
+    }
 
     // Save current clipboard
     let saved = app.clipboard().read_text().unwrap_or_default();

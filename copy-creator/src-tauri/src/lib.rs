@@ -114,8 +114,15 @@ fn apply_vibrancy_effect(window: &tauri::WebviewWindow) {
             // Auto-resize with superview (width + height flexible)
             let _: () = msg_send![effect_view, setAutoresizingMask: 18u64];
 
-            // Make the effect view fill the content view and send it to back
-            let _: () = msg_send![content_view, addSubview: effect_view positioned: -1i64 relativeTo: std::ptr::null::<Object>()];
+            // Insert behind the first subview (webview) so it doesn't block content
+            let subviews: id = msg_send![content_view, subviews];
+            let subview_count: usize = msg_send![subviews, count];
+            if subview_count > 0 {
+                let webview: id = msg_send![subviews, objectAtIndex: 0];
+                let _: () = msg_send![content_view, addSubview: effect_view positioned: -1i64 relativeTo: webview];
+            } else {
+                let _: () = msg_send![content_view, addSubview: effect_view];
+            }
 
             log::info!("apply_vibrancy_effect: NSVisualEffectView applied");
         }

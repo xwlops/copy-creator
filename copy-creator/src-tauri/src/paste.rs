@@ -437,6 +437,52 @@ fn write_files_to_clipboard_macos(paths: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// macOS: write PNG image data to the clipboard via NSPasteboard.
+#[cfg(target_os = "macos")]
+fn copy_image_macos(png_bytes: &[u8], _w: u32, _h: u32) {
+    use objc::runtime::{Class, Object};
+    use objc::{msg_send, sel, sel_impl};
+
+    unsafe {
+        let ns_pasteboard = Class::get("NSPasteboard").unwrap();
+        let general: *mut Object = msg_send![ns_pasteboard, generalPasteboard];
+        let _: i64 = msg_send![general, clearContents];
+
+        let ns_data_class = Class::get("NSData").unwrap();
+        let data: *mut Object = msg_send![ns_data_class, dataWithBytes: png_bytes.as_ptr() length: png_bytes.len()];
+
+        let png_uti = std::ffi::CString::new("public.png").unwrap();
+        let ns_string_class = Class::get("NSString").unwrap();
+        let png_type: *mut Object = msg_send![ns_string_class, stringWithUTF8String: png_uti.as_ptr()];
+
+        let _: bool = msg_send![general, setData: data forType: png_type];
+    }
+}
+
+/// macOS: write file URL to the clipboard via NSPasteboard.
+#[cfg(target_os = "macos")]
+fn copy_file_macos(path: &str) {
+    let _ = write_files_to_clipboard_macos(&[path.to_string()]);
+}
+
+/// Windows: write PNG image data to the clipboard.
+#[cfg(target_os = "windows")]
+fn copy_image_windows(png_bytes: &[u8], w: u32, h: u32) {
+    use image::ImageDecoder;
+    if let Ok(decoder) = image::codecs::png::PngDecoder::new(std::io::Cursor::new(png_bytes)) {
+        let mut rgba = vec![0u8; (w * h * 4) as usize];
+        if decoder.read_image(&mut rgba).is_ok() {
+            let _ = write_image_to_clipboard(&rgba, w, h, png_bytes);
+        }
+    }
+}
+
+/// Windows: write file path to the clipboard.
+#[cfg(target_os = "windows")]
+fn copy_file_windows(path: &str) {
+    let _ = write_files_to_clipboard(&[path.to_string()]);
+}
+
 #[tauri::command]
 pub fn paste_text(app: AppHandle, text: String) -> Result<(), String> {
     if PASTING.swap(true, Ordering::SeqCst) {

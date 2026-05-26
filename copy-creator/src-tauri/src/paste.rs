@@ -1,7 +1,41 @@
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, Ordering};
 use std::ptr;
 
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn AXIsProcessTrusted() -> bool;
+}
+
 pub static PASTING: AtomicBool = AtomicBool::new(false);
+
+/// Check accessibility permission once and cache the result.
+/// Avoids triggering the macOS TCC dialog on every paste attempt.
+fn ensure_accessibility() -> bool {
+    static CHECKED: AtomicBool = AtomicBool::new(false);
+    static TRUSTED: AtomicBool = AtomicBool::new(false);
+
+    if CHECKED.load(Ordering::SeqCst) {
+        return TRUSTED.load(Ordering::SeqCst);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let trusted = unsafe { AXIsProcessTrusted() };
+        TRUSTED.store(trusted, Ordering::SeqCst);
+        CHECKED.store(true, Ordering::SeqCst);
+        if !trusted {
+            log::warn!("[paste] accessibility not trusted — keyboard simulation will be skipped. Grant permission in System Settings > Privacy & Security > Accessibility.");
+        }
+        trusted
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        CHECKED.store(true, Ordering::SeqCst);
+        TRUSTED.store(true, Ordering::SeqCst);
+        true
+    }
+}
 
 #[cfg(target_os = "windows")]
 static LAST_FOREGROUND_HWND: AtomicPtr<core::ffi::c_void> = AtomicPtr::new(ptr::null_mut());
@@ -167,6 +201,11 @@ fn paste_with_defocus(app: &AppHandle) -> Result<(), String> {
     #[cfg(not(target_os = "windows"))]
     {
         thread::sleep(Duration::from_millis(200));
+    }
+
+    if !ensure_accessibility() {
+        log::info!("[paste] skipping keyboard simulation — accessibility not trusted");
+        return Ok(());
     }
 
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| format!("enigo init: {}", e))?;

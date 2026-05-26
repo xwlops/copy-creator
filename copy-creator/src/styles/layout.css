@@ -109,7 +109,7 @@
 }
 
 [data-platform="macos"] .sidebar-header {
-  padding: 56px 8px 6px 18px;
+  padding: 14px 8px 6px 18px;
 }
 
 .sidebar-logo {
@@ -443,10 +443,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  z-index: 10;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
   app-region: no-drag;
@@ -653,7 +649,7 @@
 }
 
 [data-platform="macos"] .panel-window-header {
-  justify-content: center;
+  justify-content: flex-start;
   padding: 14px 14px 12px;
 }
 

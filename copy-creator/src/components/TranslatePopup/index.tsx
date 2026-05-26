@@ -127,7 +127,7 @@ export default function TranslatePopup() {
         <div className="translate-popup-header-right">
           {engine && !loading && (
             <span className="engine-badge">
-              {engine === "ai" ? "AI" : "Google"}
+              {engine === "ai" ? "AI" : engine === "microsoft" ? "Microsoft" : "Google"}
             </span>
           )}
           {result && !loading && (

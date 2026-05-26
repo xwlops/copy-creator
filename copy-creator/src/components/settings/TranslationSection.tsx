@@ -10,6 +10,10 @@ interface TranslationSectionProps {
   setLocalApiKey: (key: string) => void;
   localModel: string;
   setLocalModel: (model: string) => void;
+  localMicrosoftApiKey: string;
+  setLocalMicrosoftApiKey: (key: string) => void;
+  localMicrosoftRegion: string;
+  setLocalMicrosoftRegion: (region: string) => void;
   localGoogleApiKey: string;
   setLocalGoogleApiKey: (key: string) => void;
   localTranslateProxy: string;
@@ -25,6 +29,10 @@ export function TranslationSection({
   setLocalApiKey,
   localModel,
   setLocalModel,
+  localMicrosoftApiKey,
+  setLocalMicrosoftApiKey,
+  localMicrosoftRegion,
+  setLocalMicrosoftRegion,
   localGoogleApiKey,
   setLocalGoogleApiKey,
   localTranslateProxy,
@@ -34,6 +42,7 @@ export function TranslationSection({
 
   const engineOptions = [
     { value: "google", label: t("settings.googleTranslation") },
+    { value: "microsoft", label: t("settings.microsoftTranslation") },
     { value: "ai", label: t("settings.aiTranslation") },
   ];
 
@@ -50,6 +59,16 @@ export function TranslationSection({
           />
         </div>
         <div className="settings-row vertical">
+          <div className="settings-row-label">{t("settings.translateProxy")}</div>
+          <input
+            className="settings-input"
+            value={localTranslateProxy}
+            onChange={(e) => setLocalTranslateProxy(e.target.value)}
+            placeholder={t("settings.translateProxyPlaceholder")}
+          />
+        </div>
+        <div className="settings-section-title" style={{ fontSize: "12px", marginTop: "8px" }}>{t("settings.googleConfig")}</div>
+        <div className="settings-row vertical">
           <div className="settings-row-label">{t("settings.googleApiKey")}</div>
           <input
             className="settings-input"
@@ -59,15 +78,27 @@ export function TranslationSection({
             placeholder={t("settings.googleNote")}
           />
         </div>
+        <div className="settings-section-title" style={{ fontSize: "12px", marginTop: "8px" }}>{t("settings.microsoftConfig")}</div>
         <div className="settings-row vertical">
-          <div className="settings-row-label">{t("settings.translateProxy")}</div>
+          <div className="settings-row-label">{t("settings.microsoftApiKey")}</div>
           <input
             className="settings-input"
-            value={localTranslateProxy}
-            onChange={(e) => setLocalTranslateProxy(e.target.value)}
-            placeholder={t("settings.translateProxyPlaceholder")}
+            type="password"
+            value={localMicrosoftApiKey}
+            onChange={(e) => setLocalMicrosoftApiKey(e.target.value)}
+            placeholder={t("settings.microsoftNote")}
           />
         </div>
+        <div className="settings-row vertical">
+          <div className="settings-row-label">{t("settings.microsoftRegion")}</div>
+          <input
+            className="settings-input"
+            value={localMicrosoftRegion}
+            onChange={(e) => setLocalMicrosoftRegion(e.target.value)}
+            placeholder="eastasia"
+          />
+        </div>
+        <div className="settings-section-title" style={{ fontSize: "12px", marginTop: "8px" }}>{t("settings.aiConfig")}</div>
         <div className="settings-row vertical">
           <div className="settings-row-label">{t("settings.apiUrl")}</div>
           <input

@@ -48,6 +48,8 @@ pub async fn translate(
 
     let result = if engine == "ai" {
         translate_ai(&app, &text, &source_lang, &target_lang).await?
+    } else if engine == "microsoft" {
+        translate_microsoft(&app, &text, &source_lang, &target_lang).await?
     } else {
         translate_google(&app, &text, &source_lang, &target_lang).await?
     };
@@ -243,6 +245,88 @@ async fn translate_google(
         source_text: text.to_string(),
         target_text: translated,
         engine: "google".to_string(),
+    })
+}
+
+async fn translate_microsoft(
+    app: &tauri::AppHandle,
+    text: &str,
+    _source_lang: &str,
+    target_lang: &str,
+) -> Result<TranslateResponse, String> {
+    let state = app.state::<crate::db::DbState>();
+    let (api_key, region, proxy_url): (String, String, String) = {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        let key: String = conn.query_row(
+            "SELECT value FROM settings WHERE key = 'microsoft_api_key'", [], |r| r.get(0),
+        ).unwrap_or_default();
+        let reg: String = conn.query_row(
+            "SELECT value FROM settings WHERE key = 'microsoft_region'", [], |r| r.get(0),
+        ).unwrap_or_else(|_| "eastasia".to_string());
+        let proxy: String = conn.query_row(
+            "SELECT value FROM settings WHERE key = 'translate_proxy'", [], |r| r.get(0),
+        ).unwrap_or_default();
+        (key, reg, proxy)
+    };
+
+    if api_key.is_empty() {
+        return Err("Microsoft 翻译未配置，请在设置中填写 API Key。可前往 Azure 免费创建（每月 200 万字符）".to_string());
+    }
+
+    let mut builder = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15));
+
+    if !proxy_url.is_empty() {
+        let proxy = reqwest::Proxy::all(&proxy_url)
+            .map_err(|e| format!("代理配置无效 ({}): {}", proxy_url, e))?;
+        builder = builder.proxy(proxy);
+    }
+
+    let client = builder
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let url = format!(
+        "https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to={}",
+        target_lang
+    );
+
+    let resp = client
+        .post(&url)
+        .header("Ocp-Apim-Subscription-Key", &api_key)
+        .header("Ocp-Apim-Subscription-Region", &region)
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!([{"Text": text}]))
+        .send().await.map_err(|e| {
+            if e.is_connect() { "Microsoft 翻译连接失败，请检查代理配置".to_string() }
+            else if e.is_timeout() { "Microsoft 翻译请求超时".to_string() }
+            else { format!("Microsoft 翻译请求失败: {}", e) }
+        })?;
+
+    let status = resp.status();
+    let body = resp.text().await.map_err(|e| format!("读取 Microsoft 响应失败: {}", e))?;
+
+    if !status.is_success() {
+        return Err(format!("Microsoft 翻译 HTTP {}: {}", status.as_u16(), &body[..body.len().min(80)]));
+    }
+
+    let json: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("解析 Microsoft 响应失败: {}", e))?;
+
+    if let Some(error) = json.get("error") {
+        let msg = error["message"].as_str().unwrap_or("未知错误");
+        return Err(format!("Microsoft 翻译错误: {}", &msg[..msg.len().min(80)]));
+    }
+
+    let translated = json[0]["translations"][0]["text"]
+        .as_str()
+        .ok_or("Microsoft 响应格式异常")?
+        .to_string();
+
+    Ok(TranslateResponse {
+        source_text: text.to_string(),
+        target_text: translated,
+        engine: "microsoft".to_string(),
     })
 }
 

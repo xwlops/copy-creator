@@ -12,8 +12,8 @@ interface SettingsState {
   apiUrl: string;
   apiKey: string;
   model: string;
-  baiduAppId: string;
-  baiduSecret: string;
+  microsoftApiKey: string;
+  microsoftRegion: string;
   googleApiKey: string;
   translateProxy: string;
   language: string;
@@ -37,8 +37,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   apiUrl: "",
   apiKey: "",
   model: "",
-  baiduAppId: "",
-  baiduSecret: "",
+  microsoftApiKey: "",
+  microsoftRegion: "eastasia",
   googleApiKey: "",
   translateProxy: "",
   language: "zh-CN",
@@ -66,8 +66,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         apiUrl: settings.ai_api_url || "",
         apiKey: settings.ai_api_key || "",
         model: settings.ai_model || "",
-        baiduAppId: settings.baidu_appid || "",
-        baiduSecret: settings.baidu_secret || "",
+        microsoftApiKey: settings.microsoft_api_key || "",
+        microsoftRegion: settings.microsoft_region || "eastasia",
         googleApiKey: settings.google_api_key || "",
         translateProxy: settings.translate_proxy || "",
         language: settings.language || "zh-CN",

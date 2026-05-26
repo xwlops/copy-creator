@@ -370,12 +370,16 @@ pub fn update_radial_keyboard_shortcut(
 fn capture_selected_text(app: &AppHandle) -> String {
     use tauri_plugin_clipboard_manager::ClipboardExt;
 
-    // Skip keyboard simulation if the app lacks accessibility permission.
-    // Calling Enigo without trust triggers the macOS permission dialog every time,
-    // even if the user already granted it for a previous build.
-    if !is_accessibility_permitted() {
-        log::info!("[capture_selected_text] accessibility not trusted, skipping keyboard simulation");
-        return String::new();
+    // Check accessibility once per session to avoid repeated permission dialogs.
+    // Cache the result in a static so we only check on the first call.
+    static ACCESSIBILITY_OK: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let trusted = *ACCESSIBILITY_OK.get_or_init(|| is_accessibility_permitted());
+
+    if !trusted {
+        log::info!("[capture_selected_text] accessibility not trusted, falling back to clipboard");
+        return app.clipboard().read_text()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
     }
 
     // Save current clipboard
@@ -408,7 +412,7 @@ fn capture_selected_text(app: &AppHandle) -> String {
     }
 
     // Wait for clipboard to receive the copied text
-    std::thread::sleep(std::time::Duration::from_millis(60));
+    std::thread::sleep(std::time::Duration::from_millis(100));
 
     let captured = app.clipboard().read_text()
         .map(|s| s.trim().to_string())

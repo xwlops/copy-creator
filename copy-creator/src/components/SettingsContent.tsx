@@ -56,6 +56,8 @@ export default function SettingsContent({ embedded }: Props) {
   const [localApiUrl, setLocalApiUrl] = useState(settings.apiUrl);
   const [localApiKey, setLocalApiKey] = useState(settings.apiKey);
   const [localModel, setLocalModel] = useState(settings.model);
+  const [localMicrosoftApiKey, setLocalMicrosoftApiKey] = useState(settings.microsoftApiKey);
+  const [localMicrosoftRegion, setLocalMicrosoftRegion] = useState(settings.microsoftRegion);
   const [localGoogleApiKey, setLocalGoogleApiKey] = useState(settings.googleApiKey);
   const [localTranslateProxy, setLocalTranslateProxy] = useState(settings.translateProxy);
   const [localLang, setLocalLang] = useState(i18n.language);
@@ -91,6 +93,8 @@ export default function SettingsContent({ embedded }: Props) {
     setLocalApiUrl(settings.apiUrl);
     setLocalApiKey(settings.apiKey);
     setLocalModel(settings.model);
+    setLocalMicrosoftApiKey(settings.microsoftApiKey);
+    setLocalMicrosoftRegion(settings.microsoftRegion);
     setLocalGoogleApiKey(settings.googleApiKey);
     setLocalTranslateProxy(settings.translateProxy);
     setLocalLang(i18n.language);
@@ -171,6 +175,8 @@ export default function SettingsContent({ embedded }: Props) {
       ai_api_url: localApiUrl,
       ai_api_key: localApiKey,
       ai_model: localModel,
+      microsoft_api_key: localMicrosoftApiKey,
+      microsoft_region: localMicrosoftRegion,
       google_api_key: localGoogleApiKey,
       translate_proxy: localTranslateProxy,
       language: localLang,
@@ -277,6 +283,10 @@ export default function SettingsContent({ embedded }: Props) {
         setLocalApiKey={setLocalApiKey}
         localModel={localModel}
         setLocalModel={setLocalModel}
+        localMicrosoftApiKey={localMicrosoftApiKey}
+        setLocalMicrosoftApiKey={setLocalMicrosoftApiKey}
+        localMicrosoftRegion={localMicrosoftRegion}
+        setLocalMicrosoftRegion={setLocalMicrosoftRegion}
         localGoogleApiKey={localGoogleApiKey}
         setLocalGoogleApiKey={setLocalGoogleApiKey}
         localTranslateProxy={localTranslateProxy}

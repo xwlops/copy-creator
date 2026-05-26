@@ -113,7 +113,7 @@ export default function TranslationPage() {
           <div className="translation-result-header-right">
             {engine && (
               <span className="engine-badge">
-                {engine === "ai" ? "AI" : "Google"}
+                {engine === "ai" ? "AI" : engine === "microsoft" ? "Microsoft" : "Google"}
               </span>
             )}
             {result && (

@@ -112,21 +112,11 @@ fn apply_vibrancy_effect(window: &tauri::WebviewWindow) {
 
         // Create NSVisualEffectView
         if let Some(ns_vev_class) = Class::get("NSVisualEffectView") {
-            // Get bounds as proper NSRect struct — returning as `id` corrupts the value
-            let bounds: NSRect = msg_send![content_view, bounds];
-            // Guard against NaN/Inf/zero-sized frames that crash AppKit
-            let frame = if bounds.size.width.is_finite()
-                && bounds.size.height.is_finite()
-                && bounds.size.width > 0.0
-                && bounds.size.height > 0.0
-            {
-                bounds
-            } else {
-                log::warn!(
-                    "apply_vibrancy_effect: invalid bounds ({:?} x {:?}), falling back to zero rect",
-                    bounds.size.width, bounds.size.height
-                );
-                NSRect { origin: NSPoint::new(0.0, 0.0), size: NSSize { width: 0.0, height: 0.0 } }
+            // Use zero rect — autoresizing mask (set below) will cause the
+            // effect view to fill its superview automatically.
+            let frame = NSRect {
+                origin: NSPoint::new(0.0, 0.0),
+                size: NSSize { width: 0.0, height: 0.0 },
             };
             let effect_view: id = msg_send![ns_vev_class, alloc];
             let effect_view: id = msg_send![effect_view, initWithFrame: frame];

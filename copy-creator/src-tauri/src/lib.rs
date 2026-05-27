@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate objc;
+
 mod clipboard;
 mod db;
 mod paste;

@@ -350,6 +350,15 @@ pub fn update_radial_keyboard_shortcut(
 }
 
 /// Clamp proposed window position so the window stays fully within the containing monitor.
+fn select_text_to_translate(selected_text: &str) -> Option<String> {
+    let trimmed = selected_text.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 fn clamp_to_monitor_bounds(
     window: &tauri::WebviewWindow,
     proposed_x: i32,
@@ -410,24 +419,12 @@ pub fn show_translate_popup(app: AppHandle) -> Result<(), String> {
         // Give the user time to release the shortcut modifier keys
         std::thread::sleep(std::time::Duration::from_millis(200));
 
-        // First try to capture currently selected text, fall back to clipboard
         let selected_text = crate::selection::capture_selected_text();
-        let text_to_translate = if !selected_text.is_empty() {
-            log::info!("[show_translate_popup] using captured selected text: {} chars", selected_text.len());
-            selected_text
-        } else {
-            use tauri_plugin_clipboard_manager::ClipboardExt;
-            let clipboard_text = app.clipboard().read_text()
-                .map(|s| s.trim().to_string())
-                .unwrap_or_default();
-            log::info!("[show_translate_popup] falling back to clipboard: {} chars", clipboard_text.len());
-            clipboard_text
-        };
-
-        if text_to_translate.is_empty() {
-            log::info!("[show_translate_popup] no text to translate");
+        let Some(text_to_translate) = select_text_to_translate(&selected_text) else {
+            log::warn!("[show_translate_popup] no selected text captured; not using clipboard fallback");
             return;
-        }
+        };
+        log::info!("[show_translate_popup] using captured selected text: {} chars", text_to_translate.len());
 
         if let Some(window) = app.get_webview_window("translate-popup") {
 
@@ -479,6 +476,22 @@ pub fn show_translate_popup(app: AppHandle) -> Result<(), String> {
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn translate_popup_does_not_use_clipboard_when_selection_capture_is_empty() {
+        assert_eq!(super::select_text_to_translate(""), None);
+    }
+
+    #[test]
+    fn translate_popup_uses_captured_selected_text() {
+        assert_eq!(
+            super::select_text_to_translate("  selected web text  "),
+            Some("selected web text".to_string())
+        );
+    }
 }
 
 #[tauri::command]

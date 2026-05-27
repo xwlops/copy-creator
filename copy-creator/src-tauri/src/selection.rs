@@ -293,7 +293,7 @@ fn scheme_sniff_browser(bundle_id: &str) -> Option<ApplescriptSyntax> {
 // ---------------------------------------------------------------------------
 
 #[cfg(target_os = "macos")]
-#[link(name = "Foundation", kind = "framework")]
+#[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
     fn dispatch_get_main_queue() -> *mut std::ffi::c_void;
     fn dispatch_async_f(

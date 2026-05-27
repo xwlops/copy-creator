@@ -1,3 +1,4 @@
 releases/
 .trae/
 .claude/settings.local.json
+.claude-worktrees/
